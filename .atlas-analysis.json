@@ -1,0 +1,126 @@
+{
+  "projectType": "cli-tool",
+  "projectName": "Splat",
+  "projectDescription": "AI-powered debugging tool that analyzes compile and runtime errors with contextual code analysis",
+  "theme": "aspen",
+  "primaryColor": "#FF6B6B",
+  "lightColor": "#FFE66D",
+  "darkColor": "#4ECDC4",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/how-it-works",
+              "concepts/error-analysis",
+              "concepts/dependency-graph",
+              "concepts/git-awareness"
+            ]
+          },
+          {
+            "group": "Commands",
+            "pages": [
+              "commands/squash",
+              "commands/flags",
+              "commands/interactive-mode"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/setup",
+              "configuration/environment-variables",
+              "configuration/groq-api"
+            ]
+          },
+          {
+            "group": "Examples",
+            "pages": [
+              "examples/basic-usage",
+              "examples/relational-mode",
+              "examples/frameworks"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Core Modules",
+            "pages": [
+              "api/relational",
+              "api/process",
+              "api/errortrace",
+              "api/utils"
+            ]
+          },
+          {
+            "group": "Agents",
+            "pages": [
+              "api/agents/bug-zapper",
+              "api/agents/file-writer"
+            ]
+          },
+          {
+            "group": "CLI",
+            "pages": [
+              "api/cli/commands",
+              "api/cli/terminal-session"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Advanced",
+        "groups": [
+          {
+            "group": "Guides",
+            "pages": [
+              "advanced/troubleshooting",
+              "advanced/known-issues",
+              "advanced/contributing"
+            ]
+          },
+          {
+            "group": "Architecture",
+            "pages": [
+              "advanced/architecture/overview",
+              "advanced/architecture/error-pipeline",
+              "advanced/architecture/llm-integration"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "AI-powered error debugging with Groq LLM",
+    "Context-aware analysis using dependency graphs",
+    "Relational flag for Nth-degree dependency scanning",
+    "Git-aware context collection",
+    "Automatic code fix suggestions",
+    "Interactive terminal integration"
+  ],
+  "publicApiSurface": [
+    "splat squash <command>",
+    "splat squash -r <command>",
+    "relational_error_parsing_function(entrypoint, flag)",
+    "parse_error_stack(error_info)",
+    "build_adjacency_list(files, project_root)",
+    "get_nth_related_files(start_files, graph)",
+    "process(traceback, error_info, repopack)",
+    "run_mock_repopack(paths)"
+  ]
+}
