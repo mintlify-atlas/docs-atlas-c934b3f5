@@ -3,6 +3,10 @@ title: Installation
 description: Install Splat and set up your environment to start AI-powered debugging in minutes
 ---
 
+<Note>
+**Development Note**: Splat's CLI is under active development. The core error analysis modules are functional, but the `splat squash` command interface is not yet fully wired up in the codebase. This guide documents the intended installation and usage pattern.
+</Note>
+
 ## Prerequisites
 
 Before installing Splat, ensure you have the following:
@@ -31,7 +35,7 @@ Before installing Splat, ensure you have the following:
     <Steps>
       <Step title="Clone the repository">
         ```bash
-        git clone https://github.com/yourusername/splat.git
+        git clone https://github.com/ehcaw/splat.git
         cd splat
         ```
       </Step>
@@ -162,8 +166,9 @@ Before installing Splat, ensure you have the following:
     Splat uses Groq for AI inference. Create a `.env` file in your project or Splat installation directory:
 
     ```bash .env
-    MODEL=groq/llama-3.1-70b-versatile
+    API=your_groq_api_key_here
     API_KEY=your_groq_api_key_here
+    MODEL=llama3-70b-8192
     ```
 
     <Note>
