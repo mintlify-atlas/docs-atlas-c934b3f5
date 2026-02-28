@@ -1,80 +1,331 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quick Start
+description: Go from installation to your first successful AI-powered debug in under 5 minutes
 ---
 
-## Get started in three steps
+## Your First Debug Session
 
-Get your documentation site running locally and make your first customization.
+This guide walks you through debugging your first error with Splat using a real example.
 
-### Step 1: Set up your local environment
+<Steps>
+  <Step title="Verify your installation">
+    Ensure Splat is installed and your virtual environment is activated:
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
+    ```bash
+    source zapenv/bin/activate
+    splat --version
+    ```
+  </Step>
+
+  <Step title="Create a test file with an error">
+    Let's create a simple Python file with a syntax error:
+
+    ```python test.py
+    def hello():
+        print("hello"
     
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
+    if __name__ == "__main__":
+        hello()
+    ```
+
+    <Note>
+      Notice the missing closing parenthesis on line 2 - this is intentional!
+    </Note>
+
+    If you try to run this directly, you'll get a syntax error:
+
+    ```bash
+    python3 test.py
+    ```
+
+    ```
+    File "test.py", line 2
+        print("hello"
+                     ^
+    SyntaxError: '(' was never closed
+    ```
+  </Step>
+
+  <Step title="Run Splat to debug the error">
+    Instead of running the file directly, use Splat:
+
+    ```bash
+    splat squash "python3 test.py"
+    ```
+
+    Splat will:
+    1. Execute your command and capture the error
+    2. Parse the stack trace to identify `test.py`
+    3. Read the file contents
+    4. Send the error and code to Groq's AI for analysis
+    5. Return a structured debug response
+
+    <Info>
+      The first run might take a few seconds as Splat initializes. Subsequent runs are nearly instant.
+    </Info>
+  </Step>
+
+  <Step title="Review the debug response">
+    Splat will provide a structured response:
+
+    ```json
+    {
+      "path": "/path/to/test.py",
+      "file": "test.py",
+      "line": 2,
+      "what": "SyntaxError: The opening parenthesis in the print() call on line 2 is never closed. Python requires all opening parentheses to have matching closing parentheses.",
+      "todo": "Add a closing parenthesis ')' at the end of line 2 after the string 'hello'. The corrected line should read: print('hello')"
+    }
+    ```
+
+    The response includes:
+    - **path**: Full path to the file with the error
+    - **file**: Filename
+    - **line**: Exact line number
+    - **what**: Clear explanation of what went wrong
+    - **todo**: Step-by-step instructions to fix it
+  </Step>
+
+  <Step title="Fix the error">
+    Apply the suggested fix:
+
+    ```python test.py
+    def hello():
+        print("hello")
     
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+    if __name__ == "__main__":
+        hello()
+    ```
 
-### Step 2: Deploy your changes
+    Run it again through Splat:
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    ```bash
+    splat squash "python3 test.py"
+    ```
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+    Success! Your code runs without errors.
+  </Step>
+</Steps>
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+## Understanding the Command
 
-### Step 3: Go live
+The basic Splat command follows this pattern:
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+```bash
+splat squash "<your-command>"
+```
 
-## Next steps
+<ParamField path="squash" type="command" required>
+  The Splat subcommand that executes your code and captures errors
+</ParamField>
 
-Now that you have your docs running, explore these key features:
+<ParamField path="your-command" type="string" required>
+  The exact command you would normally use to run your application, wrapped in quotes
+</ParamField>
+
+### Examples
+
+<CodeGroup>
+  ```bash Python Script
+  splat squash "python3 app.py"
+  ```
+
+  ```bash Python Module
+  splat squash "python3 -m my_package.main"
+  ```
+
+  ```bash FastAPI Application
+  splat squash "uvicorn main:app --reload"
+  ```
+
+  ```bash Django Development Server
+  splat squash "python manage.py runserver"
+  ```
+
+  ```bash Script with Arguments
+  splat squash "python3 script.py --input data.json --verbose"
+  ```
+</CodeGroup>
+
+## Using Relational Mode
+
+For complex errors involving multiple files, use the `-r` flag to enable relational analysis:
+
+```bash
+splat squash -r "python3 main.py"
+```
+
+Relational mode builds a dependency graph of your project:
+
+1. **Parses imports** - Analyzes `import` and `from` statements in error files
+2. **Builds adjacency list** - Creates a graph of file relationships
+3. **Finds related files** - Traverses the graph to find all Nth-degree dependencies
+4. **Includes context** - Sends all related files to the AI for deeper analysis
+
+<Tip>
+  Use relational mode (`-r`) when:
+  - The error involves multiple files
+  - You're debugging import issues or circular dependencies
+  - The error message mentions files outside your main script
+  - You need deeper context about how files interact
+</Tip>
+
+### Example: Debugging with Relational Mode
+
+Consider a FastAPI application with this structure:
+
+```
+project/
+├── main.py
+├── handlers/
+│   └── fastapi_handlers.py
+└── utils/
+    └── utils.py
+```
+
+If `main.py` imports from `handlers.fastapi_handlers`, which imports from `utils.utils`, and an error occurs:
+
+```bash
+splat squash -r "python3 main.py"
+```
+
+Splat will include **all three files** in the analysis, giving the AI complete context about your application's structure and dependencies.
+
+## Real-World Example
+
+Let's debug a more realistic error using the test FastAPI application from the Splat repository:
+
+<Steps>
+  <Step title="Navigate to the test directory">
+    ```bash
+    cd test/
+    ```
+  </Step>
+
+  <Step title="Run the FastAPI app through Splat">
+    ```bash
+    splat squash "python3 main.py"
+    ```
+
+    The application intentionally contains several bugs:
+    - Random server errors in `/users` endpoint
+    - Type validation errors in `/items` endpoint  
+    - Missing key errors in `/process` endpoint
+    - Off-by-one errors in `/item/{item_id}` update
+  </Step>
+
+  <Step title="Trigger an error">
+    With the server running, make a request that triggers an error:
+
+    ```bash
+    curl http://localhost:8000/process -X POST -H "Content-Type: application/json" -d '{"value1": 5}'
+    ```
+
+    This will cause a KeyError because `value2` is missing.
+  </Step>
+
+  <Step title="Get AI debugging assistance">
+    Splat captures the error and provides:
+    - The exact line where the KeyError occurred
+    - Explanation of why accessing `data['value2']` failed
+    - Recommendation to use `data.get('value2')` with a default value or validate input
+  </Step>
+</Steps>
+
+## Best Practices
 
 <CardGroup cols={2}>
+  <Card title="Always use quotes" icon="quote-left">
+    Wrap your command in quotes to ensure proper parsing:
+    ```bash
+    splat squash "python3 app.py"
+    ```
+  </Card>
 
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
+  <Card title="Use -r for multi-file errors" icon="diagram-project">
+    Enable relational mode when errors span multiple files:
+    ```bash
+    splat squash -r "python3 main.py"
+    ```
+  </Card>
 
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
+  <Card title="Check .gitignore" icon="eye-slash">
+    Ensure sensitive files are excluded via `.gitignore` before using Splat
+  </Card>
 
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Review AI suggestions" icon="magnifying-glass">
+    Always review AI recommendations before applying fixes - understanding the error helps prevent future issues
+  </Card>
 </CardGroup>
 
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>
+## Common Issues
+
+<AccordionGroup>
+  <Accordion title="Splat doesn't capture the error">
+    Some issues to check:
+    
+    1. Make sure your command is wrapped in quotes
+    2. Verify the command works when run directly (without Splat)
+    3. Check that your virtual environment is activated
+    4. Ensure you're in the correct directory
+  </Accordion>
+
+  <Accordion title="API rate limit errors">
+    If you hit Groq's rate limits:
+    
+    1. Wait a few seconds between requests
+    2. Consider upgrading your Groq API plan for higher limits
+    3. Use relational mode selectively - it sends more data per request
+  </Accordion>
+
+  <Accordion title="Files not found in relational mode">
+    If the `-r` flag doesn't find related files:
+    
+    1. Ensure imports use relative or absolute paths correctly
+    2. Check that imported modules are in the same project root
+    3. Verify your project structure follows standard Python conventions
+  </Accordion>
+
+  <Accordion title="Splat works but shows unknown errors">
+    Known limitations (from README):
+    
+    - Splat doesn't conform to formatting configurations when suggesting code
+    - Sub-module entry points not originating in the root directory may have issues
+    - Try running from your project root directory
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+Now that you've completed your first debug session, explore more:
+
+<CardGroup cols={2}>
+  <Card
+    title="How Splat Works"
+    icon="gears"
+    href="/concepts/how-it-works"
+  >
+    Deep dive into Splat's error tracing and context gathering
+  </Card>
+  <Card
+    title="Configuration"
+    icon="sliders"
+    href="/configuration/environment-variables"
+  >
+    Customize Splat's behavior and AI model settings
+  </Card>
+  <Card
+    title="Advanced Features"
+    icon="wand-sparkles"
+    href="/api/agents/file-writer"
+  >
+    Learn about file writer agents and advanced debugging modes
+  </Card>
+  <Card
+    title="Examples"
+    icon="code"
+    href="/examples/frameworks"
+  >
+    See real-world debugging scenarios and solutions
+  </Card>
+</CardGroup>

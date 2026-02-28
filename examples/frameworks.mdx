@@ -1,0 +1,518 @@
+---
+title: 'Framework-Specific Examples'
+description: 'Optimize Splat for your framework with tailored commands and best practices'
+icon: 'layer-group'
+---
+
+## Framework Detection
+
+Splat automatically detects your framework based on:
+- Command patterns (`npm start`, `uvicorn`, `rails server`)
+- Project files (`package.json`, `requirements.txt`, `Cargo.toml`)
+- File extensions (`.py`, `.jsx`, `.go`, `.rs`)
+
+<Info>
+  Framework detection enables Splat to provide context-aware fixes and framework-specific debugging.
+</Info>
+
+## Python Frameworks
+
+### FastAPI
+
+<CodeGroup>
+```bash Development Server
+splat squash "uvicorn main:app --reload"
+```
+
+```bash With Custom Port
+splat squash "uvicorn main:app --host 0.0.0.0 --port 8000"
+```
+
+```bash Production Mode
+splat squash -r "uvicorn main:app --workers 4"
+```
+</CodeGroup>
+
+**Common FastAPI Errors Splat Fixes:**
+
+<Accordion title="Pydantic Validation Errors">
+```python Before
+from pydantic import BaseModel
+
+class User(BaseModel):
+    id: int
+    name: str
+
+@app.post("/users")
+def create_user(user: User):
+    return {"id": "not_an_int", "name": user.name}  # Type mismatch
+```
+
+```bash
+$ splat squash -r "uvicorn main:app --reload"
+
+ Error: Pydantic validation error - expected int for 'id'
+ Fix: Ensure return values match the User model types
+```
+</Accordion>
+
+<Accordion title="Missing Dependencies in Path Operations">
+```python Before
+@app.get("/users/{user_id}")
+def get_user(user_id: int):
+    user = database.query(user_id)  # database not imported
+    return user
+```
+
+```bash
+$ splat squash -r "uvicorn main:app"
+
+ Error: NameError: name 'database' is not defined
+ Analysis: database module imported in dependencies.py but not in main.py
+ Fix: Add import statement: from dependencies import database
+```
+</Accordion>
+
+### Django
+
+<CodeGroup>
+```bash Development Server
+splat squash "python manage.py runserver"
+```
+
+```bash With Migrations
+splat squash "python manage.py migrate"
+```
+
+```bash Tests
+splat squash -r "python manage.py test"
+```
+</CodeGroup>
+
+**Django-Specific Examples:**
+
+<Accordion title="Migration Errors">
+```bash
+$ splat squash "python manage.py migrate"
+
+ Error: django.db.migrations.exceptions.InconsistentMigrationHistory
+
+ Analysis:
+  Migration 0003_user_email already applied but file is missing
+  Detected in: migrations/ directory
+
+ Suggested fix:
+  Run: python manage.py migrate --fake app_name 0003
+  Or: Restore missing migration file from git history
+```
+</Accordion>
+
+<Accordion title="Template Syntax Errors">
+```django Before: templates/users.html
+{% for user in users %}
+  <p>{{ user.name }}</p>
+<!-- Missing {% endfor %} -->
+```
+
+```bash
+$ splat squash -r "python manage.py runserver"
+
+ Error: TemplateSyntaxError: Unclosed tag 'for'
+ File: templates/users.html:3
+
+ Fix: Add {% endfor %} tag at end of loop
+```
+</Accordion>
+
+### Flask
+
+<CodeGroup>
+```bash Development Mode
+splat squash "flask run"
+```
+
+```bash With Custom App
+splat squash "python app.py"
+```
+
+```bash Debug Mode
+splat squash -r "flask run --debug"
+```
+</CodeGroup>
+
+## JavaScript/TypeScript Frameworks
+
+### React
+
+<CodeGroup>
+```bash Create React App
+splat squash "npm start"
+```
+
+```bash Vite
+splat squash "npm run dev"
+```
+
+```bash Production Build
+splat squash "npm run build"
+```
+</CodeGroup>
+
+**Common React Errors:**
+
+<Accordion title="Hook Dependency Warnings">
+```jsx Before
+import { useEffect, useState } from 'react';
+
+function UserProfile({ userId }) {
+  const [user, setUser] = useState(null);
+  
+  useEffect(() => {
+    fetchUser(userId).then(setUser);
+  }, []); // Missing userId dependency
+  
+  return <div>{user?.name}</div>;
+}
+```
+
+```bash
+$ splat squash "npm start"
+
+ Warning: React Hook useEffect has a missing dependency: 'userId'
+
+ Analysis:
+  useEffect depends on userId but it's not in dependency array
+  This can cause stale data when userId changes
+
+ Suggested fix:
+  Add userId to dependency array: [userId]
+```
+</Accordion>
+
+<Accordion title="JSX Syntax Errors">
+```jsx Before
+function App() {
+  return (
+    <div>
+      <img src={logo} alt="logo"
+      <p>Welcome</p>
+    </div>
+  );
+}
+```
+
+```bash
+$ splat squash "npm start"
+
+ Error: Parsing error: Unexpected token
+ File: src/App.js:4
+
+ Fix: Close self-closing <img> tag with />
+```
+</Accordion>
+
+### Next.js
+
+<CodeGroup>
+```bash Development
+splat squash "npm run dev"
+```
+
+```bash Production Build
+splat squash "npm run build"
+```
+
+```bash Start Server
+splat squash "npm start"
+```
+</CodeGroup>
+
+**Next.js-Specific Examples:**
+
+<Accordion title="Server Component Errors">
+```tsx Before: app/page.tsx
+'use client'  // Client component
+
+import { cookies } from 'next/headers'  // Server-only API
+
+export default function Page() {
+  const cookieStore = cookies()  // Error!
+  return <div>...</div>
+}
+```
+
+```bash
+$ splat squash -r "npm run dev"
+
+ Error: You're importing a server-only module in a Client Component
+
+ Analysis:
+  'use client' directive makes this a Client Component
+  cookies() only works in Server Components
+
+ Suggested fix:
+  Remove 'use client' directive or move cookies() call to Server Component
+```
+</Accordion>
+
+### Vue.js
+
+<CodeGroup>
+```bash Vue CLI
+splat squash "npm run serve"
+```
+
+```bash Vite
+splat squash "npm run dev"
+```
+</CodeGroup>
+
+### Angular
+
+<CodeGroup>
+```bash Development Server
+splat squash "ng serve"
+```
+
+```bash Build
+splat squash "ng build"
+```
+
+```bash Tests
+splat squash "ng test"
+```
+</CodeGroup>
+
+## Backend Frameworks
+
+### Express.js
+
+<CodeGroup>
+```bash Standard
+splat squash "node server.js"
+```
+
+```bash With Nodemon
+splat squash "nodemon app.js"
+```
+
+```bash NPM Script
+splat squash "npm start"
+```
+</CodeGroup>
+
+**Express Common Errors:**
+
+<Accordion title="Middleware Order Issues">
+```javascript Before
+app.use('/api', apiRouter);
+app.use(express.json());  // JSON parser should be before routes
+
+app.post('/api/users', (req, res) => {
+  console.log(req.body);  // undefined!
+});
+```
+
+```bash
+$ splat squash -r "node server.js"
+
+ Error: req.body is undefined in POST handler
+
+ Analysis:
+  express.json() middleware is registered after routes
+  Request body won't be parsed when handler runs
+
+ Suggested fix:
+  Move app.use(express.json()) before route definitions
+```
+</Accordion>
+
+### Ruby on Rails
+
+<CodeGroup>
+```bash Development Server
+splat squash "rails server"
+```
+
+```bash Database Migration
+splat squash "rails db:migrate"
+```
+
+```bash Tests
+splat squash -r "rails test"
+```
+</CodeGroup>
+
+### Spring Boot
+
+<CodeGroup>
+```bash Maven
+splat squash "./mvnw spring-boot:run"
+```
+
+```bash Gradle
+splat squash "./gradlew bootRun"
+```
+
+```bash JAR
+splat squash "java -jar target/app.jar"
+```
+</CodeGroup>
+
+## Compiled Languages
+
+### Go
+
+<CodeGroup>
+```bash Run
+splat squash "go run main.go"
+```
+
+```bash Build
+splat squash "go build"
+```
+
+```bash Test
+splat squash -r "go test ./..."
+```
+</CodeGroup>
+
+**Go Error Examples:**
+
+```bash
+$ splat squash "go run main.go"
+
+ Error: undefined: fmt
+ File: main.go:5
+
+ Analysis: Missing import for fmt package
+ Fix: Add import "fmt" at top of file
+```
+
+### Rust
+
+<CodeGroup>
+```bash Run
+splat squash "cargo run"
+```
+
+```bash Build
+splat squash "cargo build"
+```
+
+```bash Release Build
+splat squash -r "cargo build --release"
+```
+</CodeGroup>
+
+**Rust Error Examples:**
+
+```bash
+$ splat squash "cargo run"
+
+ Error: borrow of moved value: `s`
+ File: src/main.rs:12
+
+ Analysis:
+  Variable 's' moved into function and can't be used after
+  Rust ownership rules prevent use after move
+
+ Suggested fix:
+  Clone the value: function(s.clone())
+  Or use reference: function(&s)
+```
+
+### Java
+
+<CodeGroup>
+```bash Compile
+splat squash "javac Main.java"
+```
+
+```bash Run
+splat squash "java Main"
+```
+
+```bash Maven
+splat squash "mvn compile"
+```
+</CodeGroup>
+
+## Framework Detection Reference
+
+Splat detects frameworks using this priority:
+
+<Steps>
+  <Step title="Command Pattern">
+    Checks if command contains framework-specific keywords:
+    - `uvicorn` → FastAPI
+    - `npm run dev`, `next` → Next.js
+    - `rails server` → Ruby on Rails
+  </Step>
+  
+  <Step title="Project Files">
+    Looks for characteristic files:
+    - `next.config.js`, `pages/` → Next.js
+    - `manage.py`, `settings.py` → Django
+    - `Cargo.toml` → Rust
+  </Step>
+  
+  <Step title="File Extensions">
+    Analyzes file extensions in command:
+    - `.go` → Go
+    - `.rs` → Rust
+    - `.py` → Python
+  </Step>
+  
+  <Step title="Package Dependencies">
+    Parses `package.json`, `requirements.txt`, etc.:
+    - `"next"` in dependencies → Next.js
+    - `"fastapi"` in requirements → FastAPI
+  </Step>
+</Steps>
+
+## Best Practices by Framework
+
+<CardGroup cols={2}>
+  <Card title="Web Frameworks" icon="window">
+    - Use `-r` for debugging API endpoints
+    - Include database models in analysis
+    - Check middleware order issues
+  </Card>
+  
+  <Card title="Frontend Frameworks" icon="browser">
+    - Run from project root
+    - Use `-r` for component dependencies
+    - Check build errors with standard mode first
+  </Card>
+  
+  <Card title="Compiled Languages" icon="code">
+    - Use `-r` for multi-file projects
+    - Compilation errors usually need standard mode
+    - Runtime errors benefit from relational analysis
+  </Card>
+  
+  <Card title="Microservices" icon="server">
+    - Run Splat in each service directory
+    - Use `-r` for inter-service communication errors
+    - Check configuration issues across services
+  </Card>
+</CardGroup>
+
+## Unsupported Frameworks?
+
+<Note>
+  Splat works with **any** language or framework that produces error output. If your framework isn't listed here, just use the standard command pattern:
+  
+  ```bash
+  splat squash "<your-normal-command>"
+  ```
+  
+  Splat will analyze the error and provide fixes regardless of framework.
+</Note>
+
+## Next Steps
+
+- Explore [Environment Variables](/configuration/environment-variables) for framework-specific settings
+- Check [CLI Commands](/api/cli/commands) for all available options
+- See [Relational Mode](/examples/relational-mode) for advanced debugging

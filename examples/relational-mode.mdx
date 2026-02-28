@@ -1,0 +1,341 @@
+---
+title: 'Relational Mode'
+description: 'Use the -r flag to analyze complex errors across multiple files and dependencies'
+icon: 'diagram-project'
+---
+
+## What is Relational Mode?
+
+Relational mode (`-r` flag) enables deep dependency analysis. Instead of just looking at files in the error stack, Splat:
+
+1. Parses the error stack trace
+2. Identifies all files involved
+3. Builds a dependency graph of imports/includes
+4. Recursively follows relationships to Nth degree
+5. Gathers context from all related files
+6. Provides fixes with full understanding of your codebase
+
+<Info>
+  Relational mode is essential for debugging errors that span multiple modules, especially in large codebases with complex dependencies.
+</Info>
+
+## Basic Syntax
+
+```bash
+splat squash -r "<your-command>"
+```
+
+The `-r` flag must come before your command.
+
+## How It Works
+
+### Standard Mode (Without -r)
+
+```bash
+$ splat squash "python3 app.py"
+```
+
+<Steps>
+  <Step title="Parse Error Stack">
+    Extracts only the files mentioned in the error traceback
+  </Step>
+  <Step title="Gather Context">
+    Reads content from error stack files only
+  </Step>
+  <Step title="Generate Fix">
+    AI analyzes limited context and suggests a fix
+  </Step>
+</Steps>
+
+**Files analyzed:** Only those in the error stack (typically 1-3 files)
+
+### Relational Mode (With -r)
+
+```bash
+$ splat squash -r "python3 app.py"
+```
+
+<Steps>
+  <Step title="Parse Error Stack">
+    Extracts files mentioned in the error traceback
+  </Step>
+  <Step title="Build Dependency Graph">
+    Analyzes import statements and builds an adjacency list of all related files
+  </Step>
+  <Step title="Recursive Traversal">
+    Follows imports recursively to find all Nth-degree related files
+  </Step>
+  <Step title="Gather Full Context">
+    Reads content from all related files in the dependency graph
+  </Step>
+  <Step title="Generate Contextual Fix">
+    AI analyzes complete context and suggests an informed fix
+  </Step>
+</Steps>
+
+**Files analyzed:** All files in the dependency tree (can be 10+ files)
+
+## Dependency Graph Example
+
+Consider this project structure:
+
+```
+project/
+├── app.py          # Imports utils/database.py
+├── models.py       # Imported by database.py
+└── utils/
+    ├── database.py  # Imports models.py, config.py
+    └── config.py    # Base configuration
+```
+
+### Error in app.py
+
+<CodeGroup>
+```python app.py
+from utils.database import get_connection
+
+def main():
+    conn = get_connection()
+    result = conn.execute_query("SELECT * FROM users")  # Error: wrong method
+    print(result)
+```
+
+```python utils/database.py
+from models import Connection
+from utils.config import DB_CONFIG
+
+def get_connection():
+    return Connection(DB_CONFIG)
+```
+
+```python models.py
+class Connection:
+    def __init__(self, config):
+        self.config = config
+    
+    def query(self, sql):  # Correct method name
+        # Execute query logic
+        pass
+```
+</CodeGroup>
+
+### Without -r Flag
+
+```bash
+$ splat squash "python3 app.py"
+
+ Analyzing error...
+ Files analyzed: app.py
+
+ Error: AttributeError: 'Connection' object has no attribute 'execute_query'
+
+ Note: Limited context - consider using -r flag for better analysis
+```
+
+Splat only sees `app.py` and doesn't know about the `Connection` class definition in `models.py`.
+
+### With -r Flag
+
+```bash
+$ splat squash -r "python3 app.py"
+
+ Building dependency graph...
+ Files analyzed:
+   - app.py
+   - utils/database.py
+   - models.py
+   - utils/config.py
+
+ Analyzing error with full context...
+
+ Error: AttributeError: 'Connection' object has no attribute 'execute_query'
+ File: app.py:5
+
+ Analysis:
+  The Connection class (defined in models.py) has a 'query' method,
+  not 'execute_query'. The error occurs because app.py is calling
+  the wrong method name.
+
+ Suggested fix:
+  Change 'execute_query' to 'query'
+
+ Fix applied successfully!
+```
+
+With relational mode, Splat understands the full context by analyzing `models.py` and sees the correct method name.
+
+## Real-World Use Cases
+
+### Multi-Module Import Errors
+
+<CodeGroup>
+```bash Without -r
+$ splat squash "python3 main.py"
+
+ ImportError: cannot import name 'UserService'
+ Limited context available
+```
+
+```bash With -r
+$ splat squash -r "python3 main.py"
+
+ Dependency graph built:
+   main.py → services/user.py → models/user.py → utils/validators.py
+
+ ImportError: cannot import name 'UserService'
+
+ Analysis:
+  'UserService' was renamed to 'UserManager' in services/user.py
+  Found in: services/user.py:15
+
+ Suggested fix:
+  Update import in main.py to:
+  from services.user import UserManager
+
+ Fix applied!
+```
+</CodeGroup>
+
+### Type Mismatch Across Modules
+
+<CodeGroup>
+```bash Without -r
+$ splat squash "npm start"
+
+ TypeError: Cannot read property 'map' of undefined
+ File: components/UserList.js:12
+```
+
+```bash With -r
+$ splat squash -r "npm start"
+
+ Dependency graph:
+   UserList.js → hooks/useUsers.js → api/users.js
+
+ TypeError: Cannot read property 'map' of undefined
+
+ Analysis:
+  useUsers hook (hooks/useUsers.js) returns undefined when loading.
+  UserList.js doesn't check for loading state before calling .map()
+
+ Suggested fix:
+  Add loading check:
+  if (!users || loading) return <Loading />;
+
+ Fix applied!
+```
+</CodeGroup>
+
+### Configuration Issues
+
+```bash
+$ splat squash -r "python3 manage.py runserver"
+
+ Dependency graph includes:
+   manage.py → settings.py → config/database.py → config/base.py
+
+ Error: django.core.exceptions.ImproperlyConfigured
+
+ Analysis:
+  DATABASE_URL environment variable referenced in config/database.py
+  but not set. Default config in config/base.py suggests using SQLite
+  for development.
+
+ Suggested fix:
+  Set DATABASE_URL in .env or update settings.py to use SQLite default
+
+ Would you like me to:
+  1. Create .env with SQLite default
+  2. Update settings.py to fallback to SQLite
+```
+
+## Performance Considerations
+
+<AccordionGroup>
+  <Accordion title="When to Use -r Flag">
+    **Use relational mode when:**
+    - Error involves multiple files
+    - Import/dependency issues
+    - Type mismatches across modules
+    - Configuration errors
+    - Complex application logic
+    - First time debugging unfamiliar code
+
+    **Skip -r for simple cases:**
+    - Single-file syntax errors
+    - Simple typos
+    - Missing brackets/parentheses
+    - Quick iterations on the same error
+  </Accordion>
+
+  <Accordion title="Analysis Time">
+    - **Without -r:** ~1-2 seconds (1-3 files)
+    - **With -r:** ~3-5 seconds (5-20 files)
+    - **Large projects:** ~5-10 seconds (20+ files)
+
+    Splat uses Groq's fast inference to keep analysis quick even with full context.
+  </Accordion>
+
+  <Accordion title="Privacy & Gitignore">
+    Relational mode respects your `.gitignore`:
+    - Skips `node_modules/`, `venv/`, `.env` files
+    - Won't analyze files in ignored directories
+    - Keeps sensitive data private
+
+    Only project files tracked by git are included in the dependency graph.
+  </Accordion>
+</AccordionGroup>
+
+## Technical Details
+
+Relational mode uses these algorithms:
+
+### 1. Error Stack Parsing
+
+```python
+def parse_error_stack(error_info: str) -> List[str]:
+    # Extracts file paths from error traces
+    # Regex pattern matches: File "path/to/file.py", line X
+    file_pattern = re.compile(r'(?:File "([^"]+)")')
+    return list(set(matches))
+```
+
+### 2. Dependency Graph Building
+
+```python
+def build_adjacency_list(files: List[str], project_root: str) -> Dict[str, List[str]]:
+    # Parse AST to find imports
+    # Build adjacency list: {file: [imported_files]}
+    # Recursively process imported files
+    return adjacency_list
+```
+
+### 3. Nth Degree Traversal
+
+```python
+def get_nth_related_files(start_files: List[str], graph: Dict) -> Set[str]:
+    # BFS traversal of dependency graph
+    # Returns all files reachable from start_files
+    return related_files
+```
+
+This ensures complete context for AI analysis.
+
+## Tips for Best Results
+
+<Card title="Optimize Your Workflow" icon="lightbulb">
+  1. **Start with -r for new errors** - Get full context on first try
+  2. **Use standard mode for iterations** - Faster when fixing the same issue
+  3. **Keep dependencies clean** - Smaller graphs = faster analysis
+  4. **Check .gitignore** - Ensure it excludes dependencies and build artifacts
+</Card>
+
+<Warning>
+  Very large projects (1000+ files) may take longer. Consider organizing code into smaller modules or microservices for better Splat performance.
+</Warning>
+
+## Next Steps
+
+- See [Framework-Specific Examples](/examples/frameworks) for framework best practices
+- Learn about [Environment Variables](/configuration/environment-variables) to customize behavior
+- Explore [Core Concepts](/concepts/how-it-works) to understand how Splat works

@@ -1,0 +1,216 @@
+---
+title: 'Command Flags'
+description: 'Available flags and options for Splat commands'
+---
+
+## Overview
+
+Splat supports command-line flags to customize its behavior and enhance debugging capabilities.
+
+## Relational Flag (-r)
+
+The `-r` flag enables **relational context gathering**, which significantly improves debugging accuracy by analyzing not just the files in the error stack, but also their dependencies.
+
+### Usage
+
+```bash
+splat squash -r "<command>"
+```
+
+### Examples
+
+```bash
+splat squash -r "python3 main.py"
+```
+
+```bash
+splat squash -r "python3 foo.py"
+```
+
+### How It Works
+
+#### Without `-r` (Default Behavior)
+
+When you run `splat squash` without the `-r` flag:
+
+1. Splat captures the error traceback
+2. Extracts only the files mentioned in the stack trace
+3. Sends those specific files as context to the AI
+
+```python
+# Example: Error in app.py that imports utils.py
+# Only app.py context is sent to AI
+```
+
+#### With `-r` (Relational Analysis)
+
+When you run `splat squash -r`:
+
+1. Splat captures the error traceback
+2. Extracts files from the stack trace
+3. **Builds an adjacency graph** of all related files
+4. **Finds Nth-degree connections** (imports, dependencies)
+5. Includes all related files in the context sent to AI
+
+```python
+# Example: Error in app.py that imports utils.py
+# Both app.py AND utils.py context sent to AI
+# Plus any other files they import
+```
+
+### Implementation Details
+
+The relational analysis works by:
+
+```python
+# From relational.py
+if flag == '-r':
+    graph = build_adjacency_list(collected_traceback_files, project_root)
+    all_related_files = get_nth_related_files(collected_traceback_files, graph)
+    return traceback, error_information, run_mock_repopack(list(all_related_files))
+else:
+    return traceback, error_information, run_mock_repopack(collected_traceback_files)
+```
+
+### When to Use `-r`
+
+<Check>
+  **Use `-r` when:**
+  - Errors involve imported modules or dependencies
+  - The error message doesn't clearly indicate the root cause
+  - You need deeper analysis of inter-file relationships
+  - Working with complex, multi-file applications
+</Check>
+
+<Warning>
+  **Skip `-r` when:**
+  - Dealing with simple, single-file scripts
+  - Error is clearly a syntax error in one file
+  - You want faster response times (fewer files = faster AI processing)
+</Warning>
+
+### Performance Considerations
+
+The `-r` flag will:
+
+- **Increase context size**: More files sent to AI
+- **Increase processing time**: Building dependency graph takes time
+- **Improve accuracy**: More context = better debugging suggestions
+
+### Context Size Comparison
+
+**Without `-r`:**
+```bash
+$ splat squash "python3 app.py"
+# Analyzing: app.py (1 file)
+```
+
+**With `-r`:**
+```bash
+$ splat squash -r "python3 app.py"
+# Analyzing: app.py, utils.py, config.py, helpers.py (4 files)
+```
+
+## Flag Position
+
+The flag must come **before** the entrypoint command:
+
+<CodeGroup>
+```bash Correct
+splat squash -r "python3 main.py"
+```
+
+```bash Incorrect
+splat squash "python3 main.py" -r
+```
+</CodeGroup>
+
+## Future Flags
+
+<Note>
+  Additional flags may be added in future versions for:
+  - Custom AI model selection
+  - Output format control (JSON, plain text, etc.)
+  - Verbosity levels
+  - Auto-fix application
+</Note>
+
+## Technical Details
+
+### Adjacency List Construction
+
+The `-r` flag triggers building a file dependency graph:
+
+```python
+def build_adjacency_list(files, project_root):
+    # Scans import statements
+    # Creates graph of file relationships
+    # Returns adjacency list structure
+```
+
+### Nth-Degree Traversal
+
+Collects files connected to error files:
+
+```python
+def get_nth_related_files(error_files, graph):
+    # Traverses graph from error files
+    # Collects all connected nodes
+    # Returns comprehensive file list
+```
+
+### Repopack Integration
+
+Both modes use `repomix` to package context:
+
+```python
+run_mock_repopack(file_list)
+# Packages files into AI-friendly format
+# Respects .gitignore rules
+# Returns formatted context string
+```
+
+## Environment Variables
+
+Splat requires configuration via environment variables:
+
+### API Key
+
+```bash
+API=<your-groq-api-key>
+```
+
+Set in `.env` file or export in your shell:
+
+```bash
+export API="gsk_..."
+```
+
+## Best Practices
+
+1. **Start without `-r`** for quick debugging
+2. **Use `-r`** if the initial suggestion isn't helpful
+3. **Check .gitignore** to ensure sensitive files are excluded
+4. **Keep entrypoint commands quoted** to preserve arguments
+
+## Examples by Use Case
+
+### Simple Script
+```bash
+splat squash "python3 hello.py"
+```
+
+### Complex Application
+```bash
+splat squash -r "python3 -m myapp.main --config prod"
+```
+
+### Web Server
+```bash
+splat squash -r "uvicorn app.main:app --reload"
+```
+
+### Tests
+```bash
+splat squash -r "pytest tests/test_integration.py -v"
+```

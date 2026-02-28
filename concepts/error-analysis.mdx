@@ -1,0 +1,303 @@
+---
+title: 'Error Analysis'
+description: 'How Splat parses, categorizes, and analyzes runtime errors'
+icon: 'bug'
+---
+
+## Overview
+
+Splat's error analysis system transforms cryptic stack traces into actionable insights. It combines regex-based parsing, context gathering, and LLM-powered analysis to identify not just *what* went wrong, but *why* and *how to fix it*.
+
+## Error Capture Process
+
+### Subprocess Execution
+
+Splat runs your command as a subprocess to intercept all output:
+
+```python relational.py
+try:
+  subprocess.run(entrypoint, capture_output=True, check=True, text=True)
+  return "", "", ""  # No error occurred
+except subprocess.CalledProcessError as error:
+  traceback: str = error.stderr if error.stderr else str(error)
+  error_information: str = str(error)
+```
+
+<Info>
+  `check=True` causes subprocess to raise `CalledProcessError` on non-zero exit codes, allowing Splat to catch failures.
+</Info>
+
+### Error Components
+
+Splat captures three distinct pieces of information:
+
+<Steps>
+  <Step title="Traceback">
+    The full stderr output containing the stack trace
+  </Step>
+  <Step title="Error Information">
+    The stringified error object with return code and command
+  </Step>
+  <Step title="File Paths">
+    Extracted paths from the traceback for context collection
+  </Step>
+</Steps>
+
+## Stack Trace Parsing
+
+### Regex Pattern Matching
+
+The `parse_error_stack` function uses a sophisticated regex to extract file paths:
+
+```python utils/utils.py
+def parse_error_stack(error_info: str) -> List[str]:
+  files = []
+  # Matches both quoted and unquoted Python file references
+  file_pattern = re.compile(r'(?:File "([^"]+)"|\b(\S+\.py)\b)')
+
+  for line in error_info.split('\n'):
+    matches = file_pattern.findall(line)
+    for match in matches:
+      file_path = next((m for m in match if m), None)
+      if file_path:
+        file_path = file_path.strip().strip('\'\'"')
+        if os.path.exists(file_path):
+          files.append(file_path)
+
+  return list(dict.fromkeys(files))  # Remove duplicates, preserve order
+```
+
+### Pattern Breakdown
+
+The regex `r'(?:File "([^"]+)"|\b(\S+\.py)\b)'` handles two cases:
+
+<CodeGroup>
+```regex Quoted Paths
+File "([^"]+)"
+# Matches: File "/path/to/script.py"
+# Captures: /path/to/script.py
+```
+
+```regex Unquoted Paths
+\b(\S+\.py)\b
+# Matches: script.py or ./src/module.py
+# Captures: script.py or ./src/module.py
+```
+</CodeGroup>
+
+<Tip>
+  The function only includes paths that exist on the filesystem, filtering out standard library references like `<frozen importlib>`.
+</Tip>
+
+## Example Trace Analysis
+
+Let's walk through a real error:
+
+```python Example Error
+Traceback (most recent call last):
+  File "/Users/dev/project/main.py", line 5, in <module>
+    result = process_data()
+  File "/Users/dev/project/utils.py", line 12, in process_data
+    return calculate(x, y
+SyntaxError: '(' was never closed
+```
+
+### Extraction Results
+
+```python
+# parse_error_stack() returns:
+[
+  "/Users/dev/project/main.py",
+  "/Users/dev/project/utils.py"
+]
+```
+
+<Steps>
+  <Step title="Line 1">
+    Regex matches `File "/Users/dev/project/main.py"` → captures path
+  </Step>
+  <Step title="Line 3">
+    Regex matches `File "/Users/dev/project/utils.py"` → captures path
+  </Step>
+  <Step title="Validation">
+    Both paths exist on filesystem → added to results
+  </Step>
+</Steps>
+
+## LLM-Powered Analysis
+
+### Structured Prompting
+
+Splat uses a multi-message prompt system to guide the LLM:
+
+```python process/process.py
+messages=[
+  {
+    "role": "system",
+    "content": "You are an expert software debugging assistant specializing in Python error analysis."
+  },
+  {
+    "role": "system",
+    "content": "Your response MUST be a valid JSON object with this exact structure:"
+  },
+  {
+    "role": "user",
+    "content": f"Context: {context}\n\nTraceback: {traceback_message}"
+  }
+]
+```
+
+<Note>
+  Multiple system messages provide instructions, format specification, and constraints separately for better LLM adherence.
+</Note>
+
+### Response Format
+
+The LLM returns structured analysis:
+
+```json
+{
+  "where": {
+    "repository_path": "/Users/dev/project",
+    "file_name": "utils.py",
+    "line_number": "12"
+  },
+  "what": {
+    "error_type": "SyntaxError",
+    "description": "Unclosed parenthesis in function call to calculate()"
+  },
+  "how": {
+    "error_origination": "12",
+    "suggested_code_solution": "return calculate(x, y)"
+  }
+}
+```
+
+### Why JSON Output?
+
+<AccordionGroup>
+  <Accordion title="Programmatic Parsing">
+    JSON allows Splat to extract specific fields (file, line, fix) without brittle text parsing.
+  </Accordion>
+
+  <Accordion title="Consistent Structure">
+    Forces the LLM to provide all required information in a predictable format.
+  </Accordion>
+
+  <Accordion title="UI Integration">
+    Enables rich terminal display with color-coded sections and interactive navigation.
+  </Accordion>
+</AccordionGroup>
+
+## Analysis Modes
+
+Splat offers two analysis depths:
+
+<Tabs>
+  <Tab title="Basic Mode">
+    Analyzes only files directly mentioned in the error trace.
+
+    ```bash
+    splat python main.py
+    ```
+
+    **Pros:** Fast, minimal context
+    **Cons:** May miss root cause in imported modules
+  </Tab>
+
+  <Tab title="Relational Mode (-r)">
+    Analyzes error files plus all their dependencies.
+
+    ```bash
+    splat -r python main.py
+    ```
+
+    **Pros:** Comprehensive context, finds deeper issues
+    **Cons:** Slower, more tokens sent to LLM
+  </Tab>
+</Tabs>
+
+## Terminal Output
+
+### Interactive Display
+
+Parsed results are rendered with rich formatting:
+
+```python terminalout/terminal.py
+def terminalstep1(json_object):
+    data = json.loads(json_object)
+    print_formatted_text(HTML("🔎 <u><b><gray>Details about <red>error</red></gray></b></u>"))
+    print_formatted_text(HTML(f"✅ We found the first instance at <b><magenta>line {data['where']['line_number']}</magenta></b>."))
+    print_formatted_text(HTML(f"✅ The owner of the error: <b><magenta>{data['where']['file_name']}</magenta></b>."))
+    print_formatted_text(HTML(f"✅ The type: <b><magenta>{data['what']['error_type']}</magenta></b>."))
+```
+
+### User Interaction
+
+After displaying analysis, users can accept/reject the fix:
+
+```python
+kb = KeyBindings()
+
+@kb.add('left')  # Select YES
+def select_yes(event):
+    current_index = 0
+
+@kb.add('right')  # Select NO  
+def select_no(event):
+    current_index = 1
+
+@kb.add('enter')  # Confirm selection
+def confirm_selection(event):
+    event.app.exit()
+```
+
+<Tip>
+  Arrow keys navigate, Enter confirms. This provides a smooth CLI UX without requiring mouse input.
+</Tip>
+
+## Error Type Detection
+
+The LLM categorizes errors into Python's exception hierarchy:
+
+- **SyntaxError** - Malformed code that can't parse
+- **NameError** - Undefined variable/function reference
+- **TypeError** - Operation on incompatible types
+- **AttributeError** - Invalid attribute access
+- **ImportError** - Failed module import
+- **IndexError** - Sequence index out of range
+
+<Info>
+  The LLM provides the specific error type in the `what.error_type` field, enabling type-specific handling in future versions.
+</Info>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use -r for Complex Errors" icon="link">
+    When errors involve multiple files, relational mode provides crucial import context.
+  </Card>
+
+  <Card title="Check Line Numbers" icon="hashtag">
+    Verify the LLM identified the correct line - occasionally it may pinpoint a symptom rather than the root cause.
+  </Card>
+
+  <Card title="Review Suggested Fixes" icon="eye">
+    Always understand the proposed solution before applying - the LLM may miss edge cases.
+  </Card>
+
+  <Card title="Provide Clean Commands" icon="terminal">
+    Ensure your entrypoint command runs correctly without Splat first to isolate issues.
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Dependency Graphs" icon="diagram-project" href="/concepts/dependency-graph">
+    Learn how Splat maps file relationships for relational mode
+  </Card>
+  <Card title="How It Works" icon="gears" href="/concepts/how-it-works">
+    Understand the complete Splat architecture
+  </Card>
+</CardGroup>

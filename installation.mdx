@@ -1,0 +1,260 @@
+---
+title: Installation
+description: Install Splat and set up your environment to start AI-powered debugging in minutes
+---
+
+## Prerequisites
+
+Before installing Splat, ensure you have the following:
+
+<CardGroup cols={2}>
+  <Card title="Python 3.7+" icon="python">
+    Splat requires Python 3.7 or higher
+  </Card>
+  <Card title="pip or setuptools" icon="box">
+    Python package manager for installation
+  </Card>
+  <Card title="tmux" icon="terminal">
+    Terminal multiplexer for session management
+  </Card>
+  <Card title="npm (optional)" icon="node-js">
+    Required for repomix dependency
+  </Card>
+</CardGroup>
+
+## Installation Methods
+
+<Tabs>
+  <Tab title="Automated Setup (Recommended)">
+    The easiest way to install Splat is using the provided setup script:
+
+    <Steps>
+      <Step title="Clone the repository">
+        ```bash
+        git clone https://github.com/yourusername/splat.git
+        cd splat
+        ```
+      </Step>
+
+      <Step title="Run the setup script">
+        ```bash
+        chmod +x setup.sh
+        ./setup.sh
+        ```
+
+        This script will:
+        - Install tmux (on macOS via Homebrew)
+        - Create a virtual environment named `zapenv`
+        - Install all Python dependencies
+        - Install repomix globally via npm
+
+        <Note>
+          The setup script uses Homebrew on macOS. For Linux, install tmux manually using your package manager:
+          ```bash
+          # Ubuntu/Debian
+          sudo apt-get install tmux
+          
+          # Fedora
+          sudo dnf install tmux
+          
+          # Arch
+          sudo pacman -S tmux
+          ```
+        </Note>
+      </Step>
+
+      <Step title="Activate the virtual environment">
+        ```bash
+        source zapenv/bin/activate
+        ```
+      </Step>
+
+      <Step title="Verify installation">
+        ```bash
+        splat --version
+        ```
+      </Step>
+    </Steps>
+  </Tab>
+
+  <Tab title="Manual Installation">
+    <Steps>
+      <Step title="Install system dependencies">
+        Install tmux using your system package manager:
+
+        <CodeGroup>
+          ```bash macOS
+          brew install tmux
+          ```
+
+          ```bash Ubuntu/Debian
+          sudo apt-get update
+          sudo apt-get install tmux
+          ```
+
+          ```bash Fedora
+          sudo dnf install tmux
+          ```
+
+          ```bash Arch
+          sudo pacman -S tmux
+          ```
+        </CodeGroup>
+      </Step>
+
+      <Step title="Create a virtual environment">
+        ```bash
+        python3 -m venv zapenv
+        source zapenv/bin/activate
+        ```
+      </Step>
+
+      <Step title="Install Python dependencies">
+        ```bash
+        pip install -r requirements.txt
+        ```
+
+        This installs:
+        - `click` - CLI framework
+        - `groq` - AI inference API client
+        - `fastapi` & `uvicorn` - API framework (for advanced features)
+        - `python-dotenv` - Environment variable management
+        - `pydantic` & `pydantic_ai` - Data validation and AI agents
+        - `repopack` - Repository context packaging
+        - Other utilities
+      </Step>
+
+      <Step title="Install Splat">
+        ```bash
+        pip install -e .
+        ```
+
+        This installs Splat in editable mode, making the `splat` command available globally.
+      </Step>
+
+      <Step title="Install repomix (optional but recommended)">
+        ```bash
+        npm install -g repomix
+        ```
+
+        Repomix helps package repository context for AI analysis.
+      </Step>
+    </Steps>
+  </Tab>
+
+  <Tab title="Using pip (Coming Soon)">
+    <Warning>
+      PyPI distribution is not yet available. Use the automated setup or manual installation methods for now.
+    </Warning>
+
+    Once available, you'll be able to install with:
+
+    ```bash
+    pip install splat-debug
+    ```
+  </Tab>
+</Tabs>
+
+## Environment Configuration
+
+<Steps>
+  <Step title="Set up your API key">
+    Splat uses Groq for AI inference. Create a `.env` file in your project or Splat installation directory:
+
+    ```bash .env
+    MODEL=groq/llama-3.1-70b-versatile
+    API_KEY=your_groq_api_key_here
+    ```
+
+    <Note>
+      Get your free Groq API key at [console.groq.com](https://console.groq.com)
+    </Note>
+  </Step>
+
+  <Step title="Verify .gitignore support">
+    Splat automatically respects `.gitignore` files in your project to exclude sensitive information. Ensure your `.env` file is in `.gitignore`:
+
+    ```bash .gitignore
+    .env
+    __pycache__/
+    *.pyc
+    ```
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Command not found: splat">
+    If the `splat` command is not recognized after installation:
+
+    1. Ensure your virtual environment is activated:
+       ```bash
+       source zapenv/bin/activate
+       ```
+
+    2. Reinstall Splat:
+       ```bash
+       pip install -e .
+       ```
+
+    3. Check if the installation directory is in your PATH:
+       ```bash
+       echo $PATH
+       ```
+  </Accordion>
+
+  <Accordion title="tmux not found">
+    Install tmux using your system package manager:
+
+    ```bash
+    # macOS
+    brew install tmux
+
+    # Ubuntu/Debian
+    sudo apt-get install tmux
+
+    # Fedora
+    sudo dnf install tmux
+    ```
+  </Accordion>
+
+  <Accordion title="ModuleNotFoundError after installation">
+    Make sure you've installed all dependencies:
+
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+    If issues persist, try recreating your virtual environment:
+
+    ```bash
+    deactivate
+    rm -rf zapenv
+    python3 -m venv zapenv
+    source zapenv/bin/activate
+    pip install -r requirements.txt
+    pip install -e .
+    ```
+  </Accordion>
+
+  <Accordion title="API key errors">
+    If you see API authentication errors:
+
+    1. Verify your `.env` file exists and contains your Groq API key
+    2. Check that the MODEL and API_KEY variables are set correctly
+    3. Ensure your API key is valid at [console.groq.com](https://console.groq.com)
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+Now that Splat is installed, let's run your first debug session:
+
+<Card
+  title="Quick Start Guide"
+  icon="rocket"
+  href="/quickstart"
+>
+  Learn how to use Splat to debug your first error
+</Card>

@@ -1,0 +1,349 @@
+---
+title: "Groq API Configuration"
+description: "Configure Groq AI models for error analysis"
+---
+
+## Overview
+
+Splat uses [Groq](https://groq.com) as its AI inference provider for analyzing Python errors and generating debugging suggestions. Groq provides ultra-fast LLM inference, making error analysis near-instantaneous.
+
+## Why Groq?
+
+Groq was chosen for Splat because of:
+
+- **Speed**: Industry-leading inference speeds for real-time debugging
+- **Quality**: Access to powerful models like Llama 3 70B
+- **Reliability**: High uptime and consistent performance
+- **Developer-friendly**: Simple API and generous free tier
+
+## Getting a Groq API Key
+
+<Steps>
+  <Step title="Sign up for Groq">
+    Visit [console.groq.com](https://console.groq.com) and create an account.
+
+    <Info>Groq offers a generous free tier suitable for most development needs.</Info>
+  </Step>
+
+  <Step title="Navigate to API Keys">
+    Once logged in, go to the API Keys section in the console.
+  </Step>
+
+  <Step title="Create new API key">
+    Click **Create API Key**, give it a descriptive name (e.g., "Splat Development"), and copy the generated key.
+
+    <Warning>
+    Save your API key immediately. You won't be able to see it again after closing the dialog.
+    </Warning>
+  </Step>
+
+  <Step title="Add to environment">
+    Add the key to your `.env` file:
+
+    ```bash .env
+    API=gsk_your_api_key_here
+    API_KEY=gsk_your_api_key_here
+    ```
+  </Step>
+</Steps>
+
+## Available Models
+
+Splat uses different models for different components:
+
+### Error Processing (process/process.py:36)
+
+The main error analysis pipeline uses:
+
+<ParamField path="llama3-70b-8192" type="string" default>
+  **Llama 3 70B** - The default model for error analysis.
+
+  - **Context window**: 8,192 tokens
+  - **Best for**: Complex error analysis, multi-file tracebacks
+  - **Performance**: High accuracy, slower inference
+  - **Cost**: Higher token usage
+
+  This model is hardcoded in `process/process.py` but provides the best error analysis quality.
+</ParamField>
+
+### Agent System (agents/agents.py:37)
+
+The agent system model is configurable via the `MODEL` environment variable:
+
+<ParamField path="MODEL" type="string" default="llama3-70b-8192">
+  Configure which model the agent system uses:
+
+  ```bash .env
+  MODEL=llama3-70b-8192
+  ```
+
+  **Recommended options**:
+
+  - `llama3-70b-8192` - Best quality (default)
+  - `llama3-8b-8192` - Faster responses, good for simple errors
+  - `mixtral-8x7b-32768` - Larger context window for complex tracebacks
+</ParamField>
+
+### Model Comparison
+
+| Model | Context Window | Speed | Accuracy | Use Case |
+|-------|----------------|-------|----------|----------|
+| **llama3-70b-8192** | 8,192 tokens | Moderate | Excellent | Complex errors (recommended) |
+| **llama3-8b-8192** | 8,192 tokens | Fast | Good | Simple errors, quick fixes |
+| **mixtral-8x7b-32768** | 32,768 tokens | Moderate | Very Good | Large tracebacks, multi-file analysis |
+
+<Info>
+For most use cases, the default `llama3-70b-8192` provides the best balance of quality and performance.
+</Info>
+
+## API Configuration in Code
+
+Splat configures the Groq API in two locations:
+
+### 1. Error Processing Pipeline
+
+**File**: `process/process.py:11-36`
+
+```python
+from groq import Groq
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+def process(traceback_message: str, original_error_information: str, context: str):
+    client = Groq(api_key=os.getenv("API"))
+    
+    chat_completion = client.chat.completions.create(
+        messages=[...],
+        model="llama3-70b-8192",
+        response_format={"type": "json_object"}
+    )
+    return chat_completion.choices[0].message.content
+```
+
+**Key features**:
+- Uses the `API` environment variable
+- Hardcoded to use `llama3-70b-8192`
+- Returns structured JSON responses
+- Includes detailed system prompts for error analysis
+
+### 2. Agent System
+
+**File**: `agents/agents.py:36-45`
+
+```python
+from pydantic_ai import Agent
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+bug_zapper = Agent(
+    model_name=os.getenv('MODEL'),
+    api_key=os.getenv('API_KEY'),
+    deps_type=FlagDependencies,
+    result_type=ZapperResult,
+    system_prompt='You are an expert software debugging assistant...'
+)
+```
+
+**Key features**:
+- Uses the `API_KEY` and `MODEL` environment variables
+- Configurable model selection
+- Structured output with Pydantic models
+- Tool-based architecture for file operations
+
+## Structured Output Format
+
+Splat uses Groq's JSON mode to ensure consistent, parseable responses:
+
+```json
+{
+  "where": {
+    "repository_path": "/path/to/repo",
+    "file_name": "example.py",
+    "line_number": "42"
+  },
+  "what": {
+    "error_type": "SyntaxError",
+    "description": "Unclosed parenthesis in print statement"
+  },
+  "how": {
+    "error_origination": "42",
+    "suggested_code_solution": "print(hello)"
+  }
+}
+```
+
+This structured format enables automated error fixing and clear user feedback.
+
+## Rate Limits and Quotas
+
+Groq provides generous rate limits:
+
+- **Free tier**: 30 requests per minute
+- **Token limits**: Varies by model and account type
+
+<Note>
+For typical debugging workflows, the free tier is usually sufficient. Monitor your usage in the [Groq Console](https://console.groq.com).
+</Note>
+
+### Handling Rate Limits
+
+If you hit rate limits:
+
+1. **Reduce frequency**: Space out error analysis requests
+2. **Use smaller models**: Switch to `llama3-8b-8192` for simple errors
+3. **Upgrade account**: Contact Groq for higher limits
+4. **Implement retry logic**: Add exponential backoff in your code
+
+## API Usage Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Monitor usage" icon="chart-line">
+    Track your API usage in the Groq Console to avoid unexpected limits.
+  </Card>
+
+  <Card title="Use appropriate models" icon="brain">
+    Choose faster models for simple errors to save tokens and time.
+  </Card>
+
+  <Card title="Secure your keys" icon="lock">
+    Never commit API keys. Use environment variables and `.gitignore`.
+  </Card>
+
+  <Card title="Handle errors gracefully" icon="shield">
+    Implement error handling for API failures and network issues.
+  </Card>
+</CardGroup>
+
+## Security Considerations
+
+<Warning>
+Your Groq API key provides access to your account and incurs costs. Protect it carefully.
+</Warning>
+
+### Key Security Measures
+
+1. **Environment variables only**
+   ```bash
+   # Good
+   API=gsk_xxx
+   
+   # Bad - Never hardcode
+   client = Groq(api_key="gsk_xxx")
+   ```
+
+2. **Restrict file permissions**
+   ```bash
+   chmod 600 .env
+   ```
+
+3. **Use `.gitignore`**
+   ```bash .gitignore
+   .env
+   .env.*
+   !.env.example
+   ```
+
+4. **Rotate keys regularly**
+   - Create new keys monthly
+   - Delete old keys immediately
+
+5. **Separate keys per environment**
+   - Development key for local work
+   - Production key for deployed services
+
+## Troubleshooting
+
+### Authentication Failed
+
+**Error**: `401 Unauthorized` or `Invalid API key`
+
+**Solutions**:
+- Verify the API key is correct in `.env`
+- Ensure the key starts with `gsk_`
+- Check that the key hasn't been deleted in the console
+- Generate a new key if needed
+
+### Model Not Available
+
+**Error**: `Model not found` or similar
+
+**Solutions**:
+- Check the model name spelling
+- Verify the model is available in your Groq account tier
+- Use the default by removing the `MODEL` variable
+- Check [Groq's model documentation](https://console.groq.com/docs/models)
+
+### Rate Limit Exceeded
+
+**Error**: `429 Too Many Requests`
+
+**Solutions**:
+- Wait before making more requests
+- Implement exponential backoff
+- Switch to a smaller/faster model
+- Upgrade your Groq account
+
+### Timeout Errors
+
+**Error**: Request timeouts or slow responses
+
+**Solutions**:
+- Check your internet connection
+- Try a faster model (e.g., `llama3-8b-8192`)
+- Reduce the size of your error context
+- Check Groq's status page
+
+## Advanced Configuration
+
+### Custom Model Parameters
+
+While not currently exposed in Splat's configuration, the Groq API supports additional parameters:
+
+```python
+completion = client.chat.completions.create(
+    model="llama3-70b-8192",
+    messages=[...],
+    temperature=0.7,      # Creativity (0-2)
+    max_tokens=1024,      # Response length
+    top_p=0.9,           # Nucleus sampling
+    response_format={"type": "json_object"}
+)
+```
+
+To use these, you would need to modify `process/process.py`.
+
+### Using Different Providers
+
+While Splat is designed for Groq, you could adapt it for other OpenAI-compatible APIs by:
+
+1. Installing the appropriate SDK
+2. Updating the client initialization in `process/process.py` and `agents/agents.py`
+3. Adjusting model names and parameters
+
+<Note>
+Using alternative providers is not officially supported and may require code modifications.
+</Note>
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Environment Variables" icon="code" href="/configuration/environment-variables">
+    Complete environment variable reference
+  </Card>
+
+  <Card title="Initial Setup" icon="gear" href="/configuration/setup">
+    Step-by-step configuration guide
+  </Card>
+
+  <Card title="Groq Documentation" icon="book" href="https://console.groq.com/docs">
+    Official Groq API documentation
+  </Card>
+
+  <Card title="Groq Console" icon="browser" href="https://console.groq.com">
+    Manage your API keys and usage
+  </Card>
+</CardGroup>

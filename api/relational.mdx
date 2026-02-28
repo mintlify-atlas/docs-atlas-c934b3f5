@@ -1,0 +1,93 @@
+---
+title: "relational_error_parsing_function"
+description: "Parse error tracebacks and gather related file context"
+---
+
+## Overview
+
+The `relational_error_parsing_function` is the core function for executing commands, capturing errors, and gathering contextual information about files involved in the error.
+
+## Function Signature
+
+```python
+def relational_error_parsing_function(
+    entrypoint,
+    flag: str = ""
+) -> Tuple[str, str, str]
+```
+
+## Parameters
+
+<ParamField path="entrypoint" type="list[str]" required>
+  Command to execute as a list of arguments (e.g., `['python3', 'test.py']`)
+</ParamField>
+
+<ParamField path="flag" type="str" default="">
+  Optional flag to control file collection behavior:
+  - `""` (empty): Collect only files mentioned in the error traceback
+  - `"-r"`: Recursively collect all files related to the error through import dependencies
+</ParamField>
+
+## Returns
+
+<ResponseField name="return" type="Tuple[str, str, str]">
+  Returns a tuple containing three strings:
+  
+  <ResponseField name="traceback" type="str">
+    The full error traceback from stderr
+  </ResponseField>
+  
+  <ResponseField name="error_information" type="str">
+    String representation of the error
+  </ResponseField>
+  
+  <ResponseField name="context" type="str">
+    Concatenated content of all relevant files (formatted by repopack)
+  </ResponseField>
+</ResponseField>
+
+## Behavior
+
+1. Executes the command specified in `entrypoint`
+2. Captures any errors that occur during execution
+3. Parses the error traceback to identify involved files
+4. If `-r` flag is provided:
+   - Builds a dependency graph of file relationships
+   - Recursively finds all files connected to error files through imports
+5. Packages all relevant file contents using `run_mock_repopack()`
+
+## Example Usage
+
+### Basic Error Parsing
+
+```python
+from relational import relational_error_parsing_function
+
+# Execute a Python script and capture error context
+traceback, error_info, context = relational_error_parsing_function(
+    ['python3', 'app.py']
+)
+
+print(f"Error: {error_info}")
+print(f"Context includes: {len(context)} characters")
+```
+
+### Recursive Dependency Collection
+
+```python
+# Gather all related files through import relationships
+traceback, error_info, context = relational_error_parsing_function(
+    ['python3', 'main.py'],
+    flag='-r'
+)
+
+# Context now includes all files imported by error files
+# and their dependencies recursively
+```
+
+## Notes
+
+- Returns empty strings `("", "", "")` if no error occurs
+- Uses `subprocess.CalledProcessError` to capture command failures
+- File paths are resolved relative to the current working directory
+- The `-r` flag is useful for understanding complex error contexts across multiple modules

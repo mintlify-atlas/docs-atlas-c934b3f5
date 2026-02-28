@@ -1,0 +1,430 @@
+---
+title: 'Git-Aware Context Collection'
+description: 'How Splat uses Git history and repository structure to enhance debugging'
+icon: 'git'
+---
+
+## Overview
+
+Splat leverages Git repository information to provide context-aware debugging. By understanding `.gitignore` patterns, repository boundaries, and project structure, Splat focuses analysis on relevant code while respecting your project's organization.
+
+## Project Root Detection
+
+### Finding the Repository Root
+
+Splat identifies the project root to establish boundaries:
+
+```python relational.py
+project_root = os.getcwd()
+collected_traceback_files = parse_error_stack(traceback)
+```
+
+```python utils/utils.py
+def is_project_file(file_path: str, project_root: str) -> bool:
+  return os.path.commonpath([file_path, project_root]) == project_root
+```
+
+<Info>
+  The project root is determined by the current working directory when Splat is invoked. This should typically be your Git repository root.
+</Info>
+
+### Why Root Detection Matters
+
+<AccordionGroup>
+  <Accordion title="Boundary Enforcement">
+    Prevents Splat from analyzing system Python files or dependencies in virtual environments.
+  </Accordion>
+
+  <Accordion title="Path Resolution">
+    Enables correct resolution of absolute imports relative to project structure.
+  </Accordion>
+
+  <Accordion title="Context Scoping">
+    Ensures only relevant project files are sent to the LLM, reducing token usage.
+  </Accordion>
+</AccordionGroup>
+
+## File Filtering
+
+### Project File Validation
+
+Before processing any file, Splat validates it's within project bounds:
+
+```python utils/utils.py
+def process_file(file: str):
+    if file in processed_files or not is_project_file(file, project_root):
+        return  # Skip external files
+```
+
+### Path Comparison
+
+The `os.path.commonpath()` function determines if a file is within the project:
+
+```python
+# Example 1: Project file
+file_path = "/home/user/project/src/main.py"
+project_root = "/home/user/project"
+commonpath = "/home/user/project"  # Matches project_root ✓
+
+# Example 2: External file
+file_path = "/usr/lib/python3.9/os.py"
+project_root = "/home/user/project"
+commonpath = "/"  # Doesn't match project_root ✗
+```
+
+<Tip>
+  This approach works even with symlinks and relative paths, as `os.path.commonpath()` resolves them first.
+</Tip>
+
+## .gitignore Integration (Future Enhancement)
+
+<Note>
+  The current codebase includes framework detection and language identification logic (see `detect_framework_or_language` in `utils/utils.py`), suggesting future plans for `.gitignore` integration and smarter file filtering.
+</Note>
+
+### Planned Features
+
+Based on the codebase structure, future versions may include:
+
+<Steps>
+  <Step title=".gitignore Parsing">
+    Read and parse `.gitignore` patterns to exclude files
+  </Step>
+  <Step title="Node Modules Exclusion">
+    Automatically skip `node_modules/`, `venv/`, and other dependency directories
+  </Step>
+  <Step title="Build Artifact Filtering">
+    Ignore compiled files, build outputs, and cached data
+  </Step>
+  <Step title="Framework-Specific Rules">
+    Apply framework-specific ignore patterns (e.g., Next.js `.next/` directory)
+  </Step>
+</Steps>
+
+### Current Filtering Approach
+
+While `.gitignore` integration isn't implemented yet, Splat currently:
+
+- Only processes files mentioned in error traces (basic mode)
+- Only processes files imported by error trace files (relational mode with `-r`)
+- Validates all files exist on the filesystem before inclusion
+- Excludes files outside the project root
+
+<Warning>
+  If your error trace references a file in `node_modules/` or a virtual environment, Splat will currently skip it during the project boundary check. This is usually desirable behavior.
+</Warning>
+
+## Repository Structure Analysis
+
+### Framework Detection
+
+Splat includes comprehensive framework detection logic:
+
+```python utils/utils.py
+def detect_framework_or_language(command, directory='.'):
+  indicators = {
+    'python': {
+      'commands': ['python', 'python3'],
+      'files': [],
+      'extensions': ['.py']
+    },
+    'nextjs': {
+      'commands': ['next', 'npm run dev', 'yarn dev'],
+      'files': ['next.config.js', 'pages'],
+      'extensions': ['.jsx', '.tsx']
+    },
+    'django': {
+      'commands': ['python manage.py runserver', 'django-admin'],
+      'files': ['manage.py', 'settings.py'],
+      'extensions': ['.py']
+    },
+    # ... 20+ frameworks supported
+  }
+```
+
+<Info>
+  While this function is currently marked as "NOT IMPLEMENTED" in the source, the infrastructure exists for framework-aware context collection in future versions.
+</Info>
+
+### Supported Frameworks
+
+The detection system recognizes:
+
+<CardGroup cols={3}>
+  <Card title="Python" icon="python">
+    Django, Flask, FastAPI
+  </Card>
+  <Card title="JavaScript" icon="js">
+    Next.js, React, Vue, Angular, Express
+  </Card>
+  <Card title="Compiled" icon="code">
+    Go, Rust, Java, Kotlin, Scala
+  </Card>
+  <Card title="Dynamic" icon="bolt">
+    Ruby on Rails, Laravel, .NET
+  </Card>
+  <Card title="Functional" icon="function">
+    Haskell, Scala, Julia
+  </Card>
+  <Card title="Scripting" icon="scroll">
+    Perl, Lua, R
+  </Card>
+</CardGroup>
+
+### Detection Strategy
+
+The framework detector uses three strategies:
+
+<Tabs>
+  <Tab title="Command Matching">
+    ```python
+    def check_command(cmd):
+      for framework, data in indicators.items():
+        if any(c in cmd for c in data['commands']):
+          return framework
+    ```
+
+    Example: `npm run dev` → Next.js
+  </Tab>
+
+  <Tab title="File Presence">
+    ```python
+    def check_files(dir):
+      for framework, data in indicators.items():
+        if all(os.path.exists(os.path.join(dir, file)) for file in data['files']):
+          return framework
+    ```
+
+    Example: `manage.py` + `settings.py` → Django
+  </Tab>
+
+  <Tab title="Extension Analysis">
+    ```python
+    def check_file_extension(cmd):
+      file_match = re.search(r'\b[\w-]+\.[a-zA-Z0-9]+\b', cmd)
+      if file_match:
+        file_extension = os.path.splitext(file_match.group())[1]
+        # Match against known extensions
+    ```
+
+    Example: `main.rs` → Rust
+  </Tab>
+</Tabs>
+
+## Context Packaging
+
+### Repopack Integration
+
+Splat uses a "mock repopack" function to bundle context:
+
+```python utils/utils.py
+def run_mock_repopack(paths: List[str], style: str = 'json') -> str:
+  result = []
+  for path in paths:
+    if os.path.exists(path):  # Validate file existence
+      with open(path, 'r') as f:
+        content = f.read()
+      result.append(f"File: {path}\nContent:\n{content}\n")
+
+  return "\n" + "="*50 + "\n".join(result) + "="*50 + "\n"
+```
+
+<Info>
+  The function is named `run_mock_repopack` suggesting it may integrate with the actual [Repopack](https://github.com/yamadashy/repopack) tool in the future for more sophisticated context packaging.
+</Info>
+
+### Context Format
+
+Files are concatenated with clear delimiters:
+
+```
+==================================================
+File: /project/main.py
+Content:
+from utils import calculate
+
+result = calculate(42)
+
+==================================================
+File: /project/utils.py
+Content:
+def calculate(x, y):
+    return x + y
+
+==================================================
+```
+
+<Tip>
+  This format is easy for LLMs to parse while maintaining clear file boundaries.
+</Tip>
+
+## Repository Metadata (Future)
+
+### Potential Git Integration
+
+Future versions could leverage Git for:
+
+<CardGroup cols={2}>
+  <Card title="Recent Changes" icon="clock">
+    Show files modified in recent commits to highlight potential error sources
+  </Card>
+
+  <Card title="Blame Analysis" icon="user">
+    Identify when and by whom error-prone code was introduced
+  </Card>
+
+  <Card title="Branch Context" icon="code-branch">
+    Understand if errors are specific to certain branches
+  </Card>
+
+  <Card title="Commit Messages" icon="message">
+    Use commit history to understand code intent and changes
+  </Card>
+</CardGroup>
+
+### Example Implementation
+
+```python Example: Git blame integration
+import subprocess
+
+def get_recent_changes(file_path: str, days: int = 7) -> dict:
+  result = subprocess.run(
+    ['git', 'log', '--since', f'{days} days ago', '--pretty=format:%h|%s', file_path],
+    capture_output=True,
+    text=True
+  )
+  commits = []
+  for line in result.stdout.split('\n'):
+    if line:
+      hash, message = line.split('|', 1)
+      commits.append({'hash': hash, 'message': message})
+  return commits
+```
+
+<Note>
+  This is a conceptual example and not currently implemented in Splat.
+</Note>
+
+## Working Directory Awareness
+
+### Path Resolution
+
+Splat handles both absolute and relative paths:
+
+```python relational.py
+project_root = os.getcwd()
+error_files = [os.path.join(project_root, file) for file in parse_error_stack(error_info)]
+```
+
+### Relative Path Handling
+
+Error traces often contain relative paths:
+
+```python
+# Error trace shows:
+File "./src/main.py", line 5
+
+# Splat converts to absolute:
+/home/user/project/src/main.py
+```
+
+<Steps>
+  <Step title="Get CWD">
+    `os.getcwd()` returns the directory where Splat was invoked
+  </Step>
+  <Step title="Join Paths">
+    `os.path.join()` combines root and relative paths
+  </Step>
+  <Step title="Normalize">
+    Resolve `.` and `..` to canonical absolute paths
+  </Step>
+</Steps>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Run from Repository Root">
+    Always invoke Splat from your Git repository root to ensure correct path resolution:
+
+    ```bash
+    cd /path/to/project
+    splat python src/main.py  # Correct
+    ```
+
+    Not:
+
+    ```bash
+    cd /path/to/project/src
+    splat python main.py  # May have incorrect project_root
+    ```
+  </Accordion>
+
+  <Accordion title="Use Absolute Paths in Commands">
+    When possible, use absolute paths in your entrypoint:
+
+    ```bash
+    splat python /full/path/to/script.py
+    ```
+
+    This eliminates ambiguity in path resolution.
+  </Accordion>
+
+  <Accordion title="Check .gitignore">
+    Ensure your `.gitignore` excludes files you don't want analyzed (once this feature is implemented):
+
+    ```gitignore
+    __pycache__/
+    *.pyc
+    venv/
+    .env
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Environment Isolation
+
+### Virtual Environment Handling
+
+Splat automatically excludes virtual environment files:
+
+```python
+# Virtual env file:
+/home/user/project/venv/lib/python3.9/site-packages/requests/api.py
+
+# Project root:
+/home/user/project
+
+# Common path:
+/home/user/project/venv/...
+
+# is_project_file() returns:
+True (currently included)
+```
+
+<Warning>
+  Currently, Splat may include virtual environment files if they're within the project directory. This is an area for future improvement using `.gitignore` integration.
+</Warning>
+
+### Workaround
+
+To exclude venv files now, ensure your virtual environment is outside your project:
+
+```bash
+# Good:
+/home/user/venvs/myproject-env/
+/home/user/projects/myproject/
+
+# Risky:
+/home/user/projects/myproject/venv/  # May be analyzed
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="How It Works" icon="gears" href="/concepts/how-it-works">
+    See how Git awareness fits into the overall architecture
+  </Card>
+  <Card title="Dependency Graphs" icon="diagram-project" href="/concepts/dependency-graph">
+    Learn how project structure affects dependency mapping
+  </Card>
+</CardGroup>

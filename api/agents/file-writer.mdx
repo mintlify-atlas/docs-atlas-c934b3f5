@@ -1,0 +1,291 @@
+---
+title: File Writer Agent
+description: Autonomous agent for writing files and applying error corrections with uAgents framework
+---
+
+## Overview
+
+The File Writer agent is a uAgents-based autonomous agent that handles file write operations and applies automated error corrections to source code files. It runs as a standalone service with REST and message-based interfaces.
+
+## Message Models
+
+### FileWriteRequest
+
+Request model for writing content to a file.
+
+<ParamField path="file_path" type="str" required>
+  Path to the file to write
+</ParamField>
+
+<ParamField path="content" type="str" required>
+  Content to write to the file
+</ParamField>
+
+```python
+from uagents import Model
+
+class FileWriteRequest(Model):
+    file_path: str
+    content: str
+```
+
+### FileWriteResponse
+
+Response model for file write operations.
+
+<ParamField path="success" type="bool" required>
+  Whether the operation succeeded
+</ParamField>
+
+<ParamField path="message" type="str" required>
+  Success or error message describing the result
+</ParamField>
+
+```python
+class FileWriteResponse(Model):
+    success: bool
+    message: str
+```
+
+### ErrorCorrectionRequest
+
+Request model for applying automated error corrections.
+
+<ParamField path="response" type="dict" required>
+  Error correction data containing:
+  - `where.repository_path`: Base repository path
+  - `where.file_name`: Name of file to correct
+  - `where.line_number`: Line number to modify
+  - `how.suggested_code_solution`: Code to insert
+</ParamField>
+
+```python
+class ErrorCorrectionRequest(Model):
+    response: dict
+```
+
+**Expected Dictionary Structure:**
+
+```python
+{
+    "where": {
+        "repository_path": "/path/to/repo",
+        "file_name": "example.py",
+        "line_number": "42"
+    },
+    "how": {
+        "suggested_code_solution": "fixed_code_line\n"
+    }
+}
+```
+
+### ErrorCorrectionResponse
+
+Response model for error correction operations.
+
+<ParamField path="success" type="bool" required>
+  Whether the correction was applied successfully
+</ParamField>
+
+<ParamField path="message" type="str" required>
+  Success or error message
+</ParamField>
+
+```python
+class ErrorCorrectionResponse(Model):
+    success: bool
+    message: str
+```
+
+## Agent Configuration
+
+### file_writer
+
+The main File Writer agent instance.
+
+```python
+from uagents import Agent
+
+file_writer = Agent(
+    name="file_writer",
+    seed="file_writer_seed",
+    port=8000,
+    endpoint="http://localhost:8000/submit"
+)
+```
+
+**Configuration Parameters:**
+
+- `name`: Agent identifier ("file_writer")
+- `seed`: Deterministic seed for agent address generation
+- `port`: HTTP server port (8000)
+- `endpoint`: REST endpoint URL for submissions
+
+## Message Handlers
+
+### write_to_file
+
+Handles file write requests via agent messaging.
+
+```python
+@file_writer.on_message(model=FileWriteRequest)
+async def write_to_file(ctx: Context, sender: str, msg: FileWriteRequest):
+    try:
+        with open(msg.file_path, 'w') as file:
+            file.write(msg.content)
+        ctx.logger.info(f"Successfully wrote to file: {msg.file_path}")
+        await ctx.send(sender, FileWriteResponse(
+            success=True,
+            message=f"File {msg.file_path} updated successfully"
+        ))
+    except Exception as e:
+        error_message = f"Error writing to file {msg.file_path}: {str(e)}"
+        ctx.logger.error(error_message)
+        await ctx.send(sender, FileWriteResponse(
+            success=False,
+            message=error_message
+        ))
+```
+
+### apply_error_correction
+
+Applies automated code corrections preserving indentation.
+
+```python
+@file_writer.on_message(model=ErrorCorrectionRequest)
+async def apply_error_correction(ctx: Context, sender: str, msg: ErrorCorrectionRequest):
+    try:
+        response = msg.response
+        file_path = os.path.join(
+            response['where']['repository_path'],
+            response['where']['file_name']
+        )
+        line_number = int(response['where']['line_number'])
+        suggested_code = response['how']['suggested_code_solution']
+
+        # Read file
+        with open(file_path, 'r', encoding='utf-8') as file:
+            lines = file.readlines()
+
+        # Apply correction with preserved indentation
+        if 0 < line_number <= len(lines):
+            stripped_line = lines[line_number - 1].strip()
+            num_whitespace = len(lines[line_number - 1]) - len(stripped_line)
+            lines[line_number - 1] = "" * num_whitespace + suggested_code
+
+            with open(file_path, 'w', encoding='utf-8') as file:
+                file.writelines(lines)
+                
+            await ctx.send(sender, FileWriteResponse(
+                success=True,
+                message=f"File {file_path} updated successfully"
+            ))
+        else:
+            raise IndexError("Line number out of range")
+    except Exception as e:
+        error_message = f"Error applying correction: {str(e)}"
+        ctx.logger.error(error_message)
+        await ctx.send(sender, FileWriteResponse(
+            success=False,
+            message=error_message
+        ))
+```
+
+## REST Endpoints
+
+### POST /apply_correction
+
+REST endpoint for applying error corrections.
+
+```python
+@file_writer.on_rest_post("/apply_correction", ErrorCorrectionRequest, ErrorCorrectionResponse)
+async def handle_error_correction(ctx: Context, request: ErrorCorrectionRequest) -> ErrorCorrectionResponse:
+    try:
+        await apply_error_correction(ctx, file_writer.address, request)
+        return ErrorCorrectionResponse(
+            success=True,
+            message="Error correction applied successfully"
+        )
+    except Exception as e:
+        return ErrorCorrectionResponse(
+            success=False,
+            message=f"Error applying correction: {str(e)}"
+        )
+```
+
+## Event Handlers
+
+### startup
+
+Logs agent initialization details.
+
+```python
+@file_writer.on_event("startup")
+async def startup(ctx: Context):
+    ctx.logger.info(f"Starting up {file_writer.name} agent @ {file_writer.address}")
+```
+
+## Usage Examples
+
+### Writing a File
+
+```python
+from uagents import Bureau
+from file_writer_agent import file_writer, FileWriteRequest, FileWriteResponse
+
+# Send message to file writer agent
+request = FileWriteRequest(
+    file_path="/path/to/output.py",
+    content="print('Hello, World!')\n"
+)
+
+# The agent will respond with FileWriteResponse
+# success=True, message="File /path/to/output.py updated successfully"
+```
+
+### Applying Error Correction
+
+```python
+import requests
+
+# Via REST API
+response = requests.post(
+    "http://localhost:8000/apply_correction",
+    json={
+        "response": {
+            "where": {
+                "repository_path": "/home/user/project",
+                "file_name": "buggy.py",
+                "line_number": "15"
+            },
+            "how": {
+                "suggested_code_solution": "return x / y  # Fixed division\n"
+            }
+        }
+    }
+)
+
+print(response.json())
+# {"success": true, "message": "Error correction applied successfully"}
+```
+
+### Running the Agent
+
+```python
+if __name__ == "__main__":
+    print("Starting file writer agent server on http://localhost:8000")
+    file_writer.run()
+```
+
+```bash
+python file_writer_agent.py
+# Starting file writer agent server on http://localhost:8000
+```
+
+## Features
+
+- **Autonomous Operation**: Runs as independent service with messaging and REST interfaces
+- **Indentation Preservation**: Automatically preserves whitespace when applying corrections
+- **Error Handling**: Comprehensive error catching and reporting
+- **Logging**: Built-in context logging for debugging
+- **Structured Responses**: Type-safe request/response models

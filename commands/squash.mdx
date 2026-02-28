@@ -1,0 +1,152 @@
+---
+title: 'squash'
+description: 'Run your code and automatically debug errors with AI-powered analysis'
+---
+
+## Overview
+
+The `squash` command is the primary interface for Splat's AI-powered debugging. It executes your code, captures any errors that occur, and provides intelligent fixes based on comprehensive context analysis.
+
+## Basic Usage
+
+```bash
+splat squash "<command>"
+```
+
+Run your application exactly as you normally would, but prefix it with `splat squash`:
+
+```bash
+splat squash "python3 main.py"
+```
+
+```bash
+splat squash "npm start"
+```
+
+```bash
+splat squash "python3 foo.py"
+```
+
+## How It Works
+
+When you run `splat squash`, the tool:
+
+1. **Executes your command** in a controlled subprocess environment
+2. **Captures all output** including stdout, stderr, and return codes
+3. **Parses error tracebacks** to identify affected files and line numbers
+4. **Gathers context** from your codebase (respecting .gitignore)
+5. **Analyzes with AI** using Groq's fast inference models
+6. **Provides actionable fixes** with specific code suggestions
+
+## Example Output
+
+When Splat detects an error, it provides structured analysis:
+
+```bash
+$ splat squash "python3 test.py"
+
+  Running: python3 test.py
+  
+  Error detected in test.py:2
+  
+  WHERE:
+    File: test.py
+    Line: 2
+    
+  WHAT:
+    Error Type: SyntaxError
+    Description: Unclosed parenthesis in print statement
+    
+  HOW:
+    Suggested Fix:
+    print("hello")
+```
+
+## Error Analysis
+
+Splat's AI engine analyzes errors and returns:
+
+- **WHERE**: Repository path, filename, and exact line number
+- **WHAT**: Error type and clear explanation
+- **HOW**: Line where error originated and suggested code solution
+
+### Response Format
+
+The AI response is structured as JSON internally:
+
+```json
+{
+  "where": {
+    "repository_path": "/absolute/path/to/repo",
+    "file_name": "test.py",
+    "line_number": "2"
+  },
+  "what": {
+    "error_type": "SyntaxError",
+    "description": "'(' was never closed in print statement"
+  },
+  "how": {
+    "error_origination": "2",
+    "suggested_code_solution": "print(\"hello\")"
+  }
+}
+```
+
+## Context Gathering
+
+Splat automatically:
+
+- Parses error stack traces to identify relevant files
+- Respects your `.gitignore` to avoid sensitive data
+- Uses `repomix` to package file context efficiently
+- Sends only relevant code to the AI model
+
+## Performance
+
+Splat is optimized for speed:
+
+- Uses **Groq** (llama3-70b-8192) for near-instant inference
+- Captures output in real-time with threading
+- Minimizes context sent to AI while maximizing relevance
+
+## Use Cases
+
+### Quick Bug Fixes
+
+```bash
+splat squash "python3 buggy_script.py"
+```
+
+Get instant explanations and fixes for syntax errors, runtime errors, and exceptions.
+
+### Development Workflow
+
+```bash
+splat squash "python3 -m myapp.main"
+```
+
+Run your module entrypoint and debug any startup errors.
+
+### Testing
+
+```bash
+splat squash "pytest tests/"
+```
+
+Analyze test failures with full context.
+
+## Limitations
+
+<Warning>
+  Splat currently works best with scripts launched from the root directory. Sub-module entrypoints may not provide full context.
+</Warning>
+
+<Note>
+  Suggested code fixes do not currently conform to your project's formatting configuration (e.g., Black, Prettier).
+</Note>
+
+## Next Steps
+
+- Learn about the [`-r` flag](/commands/flags) for enhanced context
+- Explore [interactive mode](/commands/interactive-mode) for iterative debugging
+- Understand how Splat [gathers context](/concepts/dependency-graph)

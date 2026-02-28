@@ -1,0 +1,171 @@
+---
+title: "Initial Setup"
+description: "Configure Splat for your development environment"
+---
+
+## Overview
+
+Splat requires minimal configuration to get started. The primary requirement is setting up your Groq API credentials for AI-powered error analysis.
+
+## Installation
+
+Before configuring Splat, ensure you have installed it:
+
+```bash
+pip install splat
+```
+
+Or install from source:
+
+```bash
+git clone https://github.com/ehcaw/splat
+cd splat
+pip install -e .
+```
+
+## Quick Setup
+
+Follow these steps to get Splat configured:
+
+<Steps>
+  <Step title="Create environment file">
+    Create a `.env` file in your project root or home directory:
+
+    ```bash
+    touch .env
+    ```
+  </Step>
+
+  <Step title="Get Groq API key">
+    1. Visit [Groq Console](https://console.groq.com)
+    2. Sign up or log in to your account
+    3. Navigate to API Keys section
+    4. Create a new API key
+    5. Copy the key (you won't be able to see it again)
+
+    <Note>Keep your API key secure and never commit it to version control.</Note>
+  </Step>
+
+  <Step title="Configure environment variables">
+    Add your Groq API key to the `.env` file:
+
+    ```bash
+    API=your_groq_api_key_here
+    MODEL=llama3-70b-8192
+    API_KEY=your_groq_api_key_here
+    ```
+
+    See [Environment Variables](/configuration/environment-variables) for complete reference.
+  </Step>
+
+  <Step title="Verify setup">
+    Test your configuration by running Splat:
+
+    ```bash
+    splat
+    ```
+
+    If configured correctly, you should see the interactive CLI prompt.
+  </Step>
+</Steps>
+
+## Configuration File Location
+
+Splat uses `python-dotenv` to load environment variables. The `.env` file can be placed in:
+
+- **Project directory**: `.env` in your current working directory (recommended for project-specific settings)
+- **Home directory**: `~/.env` for global settings
+
+<Info>
+Project-level `.env` files take precedence over home directory configuration.
+</Info>
+
+## Verify Installation
+
+Check that Splat is properly installed and configured:
+
+```bash
+splat version
+```
+
+You should see:
+
+```
+Zap CLI v0.1.0
+```
+
+## Security Best Practices
+
+<Warning>
+Never commit your `.env` file or API keys to version control.
+</Warning>
+
+Add `.env` to your `.gitignore`:
+
+```bash .gitignore
+# Environment variables
+.env
+.env.local
+.env.*.local
+```
+
+### Additional Security Tips
+
+<CardGroup cols={2}>
+  <Card title="Use environment-specific files" icon="file">
+    Create separate `.env.development` and `.env.production` files for different environments.
+  </Card>
+
+  <Card title="Rotate API keys regularly" icon="rotate">
+    Periodically regenerate your Groq API keys in the console.
+  </Card>
+
+  <Card title="Limit key permissions" icon="lock">
+    Use API keys with minimal required permissions.
+  </Card>
+
+  <Card title="Monitor usage" icon="chart-line">
+    Track your API usage in the Groq Console to detect unauthorized access.
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+### API Key Not Found
+
+If you see errors about missing API keys:
+
+1. Verify your `.env` file exists and contains the `API` variable
+2. Check that the `.env` file is in the correct directory
+3. Ensure there are no extra spaces around the `=` sign
+4. Restart your terminal session to reload environment variables
+
+### Permission Errors
+
+If you encounter permission errors:
+
+```bash
+chmod 600 .env
+```
+
+This ensures only you can read/write the configuration file.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Environment Variables" icon="code" href="/configuration/environment-variables">
+    Complete reference for all configuration options
+  </Card>
+
+  <Card title="Groq API" icon="brain" href="/configuration/groq-api">
+    Learn about Groq API configuration and models
+  </Card>
+
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Start using Splat to debug your code
+  </Card>
+
+  <Card title="Commands" icon="terminal" href="/commands/squash">
+    Explore available CLI commands
+  </Card>
+</CardGroup>

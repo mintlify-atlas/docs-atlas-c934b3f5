@@ -1,0 +1,326 @@
+---
+title: "Utility Functions"
+description: "Core utilities for error parsing, dependency analysis, and file management"
+---
+
+## Overview
+
+The `utils` module provides essential utilities for parsing error stacks, building dependency graphs, and managing file relationships in Python projects.
+
+## Functions
+
+### parse_error_stack
+
+Parses Python error traceback strings to extract all unique file paths involved in the error.
+
+#### Signature
+
+```python
+def parse_error_stack(error_info: str) -> List[str]
+```
+
+#### Parameters
+
+<ParamField path="error_info" type="str" required>
+  The full error stack trace as a string
+</ParamField>
+
+#### Returns
+
+<ResponseField name="return" type="List[str]">
+  A list of unique file paths involved in the error, in order of appearance. Only includes paths that exist on the filesystem.
+</ResponseField>
+
+#### Example Usage
+
+```python
+from utils.utils import parse_error_stack
+
+error_trace = '''
+Traceback (most recent call last):
+  File "/home/user/project/main.py", line 10, in <module>
+    from utils import helper
+  File "/home/user/project/utils.py", line 5, in <module>
+    raise ValueError("Invalid configuration")
+ValueError: Invalid configuration
+'''
+
+files = parse_error_stack(error_trace)
+print(files)
+# Output: ['/home/user/project/main.py', '/home/user/project/utils.py']
+```
+
+---
+
+### build_adjacency_list
+
+Builds a dependency graph (adjacency list) showing import relationships between Python files.
+
+#### Signature
+
+```python
+def build_adjacency_list(
+    files: List[str],
+    project_root: str
+) -> Dict[str, List[str]]
+```
+
+#### Parameters
+
+<ParamField path="files" type="List[str]" required>
+  List of Python file paths to analyze for import relationships
+</ParamField>
+
+<ParamField path="project_root" type="str" required>
+  Root directory of the project to ensure valid paths and scope analysis
+</ParamField>
+
+#### Returns
+
+<ResponseField name="return" type="Dict[str, List[str]]">
+  An adjacency list where each key is a file path and its value is a list of file paths it imports. Recursively processes all imported files within the project.
+</ResponseField>
+
+#### How It Works
+
+1. Uses Python's `ast` module to parse source files
+2. Extracts `import` and `from ... import` statements
+3. Resolves module names to file paths
+4. Recursively processes imported files
+5. Handles syntax errors gracefully by continuing analysis
+
+#### Example Usage
+
+```python
+from utils.utils import build_adjacency_list
+
+files = ['./main.py', './utils.py']
+project_root = '/home/user/project'
+
+graph = build_adjacency_list(files, project_root)
+print(graph)
+# Output:
+# {
+#   './main.py': ['./utils.py', './config.py'],
+#   './utils.py': ['./helpers.py'],
+#   './config.py': [],
+#   './helpers.py': []
+# }
+```
+
+---
+
+### get_nth_related_files
+
+Finds all files related to a set of starting files through any degree of connection in the dependency graph.
+
+#### Signature
+
+```python
+def get_nth_related_files(
+    start_files: List[str],
+    graph: Dict[str, List[str]]
+) -> Set[str]
+```
+
+#### Parameters
+
+<ParamField path="start_files" type="List[str]" required>
+  The files to start with for finding related files
+</ParamField>
+
+<ParamField path="graph" type="Dict[str, List[str]]" required>
+  The adjacency list representing relationships between files (from `build_adjacency_list`)
+</ParamField>
+
+#### Returns
+
+<ResponseField name="return" type="Set[str]">
+  A set of all files related to `start_files` through any degree of connection (breadth-first traversal)
+</ResponseField>
+
+#### Example Usage
+
+```python
+from utils.utils import build_adjacency_list, get_nth_related_files
+
+# Build graph
+error_files = ['./main.py']
+graph = build_adjacency_list(error_files, '/home/user/project')
+
+# Find all related files
+related = get_nth_related_files(error_files, graph)
+print(related)
+# Output: {'./main.py', './utils.py', './config.py', './helpers.py', ...}
+```
+
+---
+
+### run_mock_repopack
+
+Reads file contents and formats them into a consolidated string representation.
+
+#### Signature
+
+```python
+def run_mock_repopack(
+    paths: List[str],
+    style: str = 'json'
+) -> str
+```
+
+#### Parameters
+
+<ParamField path="paths" type="List[str]" required>
+  List of file paths to be processed
+</ParamField>
+
+<ParamField path="style" type="str" default="json">
+  Output style (currently not used in implementation, reserved for future use)
+</ParamField>
+
+#### Returns
+
+<ResponseField name="return" type="str">
+  A string containing all file contents with headers and separators:
+  
+  ```
+  ==================================================
+  File: /path/to/file1.py
+  Content:
+  <file contents>
+  
+  ==================================================
+  File: /path/to/file2.py
+  Content:
+  <file contents>
+  
+  ==================================================
+  ```
+</ResponseField>
+
+#### Example Usage
+
+```python
+from utils.utils import run_mock_repopack
+
+files = ['./main.py', './utils.py']
+context = run_mock_repopack(files)
+print(context)
+```
+
+---
+
+### is_project_file
+
+Checks if a file path is within the project root directory.
+
+#### Signature
+
+```python
+def is_project_file(file_path: str, project_root: str) -> bool
+```
+
+#### Parameters
+
+<ParamField path="file_path" type="str" required>
+  File path to check
+</ParamField>
+
+<ParamField path="project_root" type="str" required>
+  Root directory of the project
+</ParamField>
+
+#### Returns
+
+<ResponseField name="return" type="bool">
+  `True` if the file is within the project root, `False` otherwise
+</ResponseField>
+
+#### Example Usage
+
+```python
+from utils.utils import is_project_file
+
+project_root = '/home/user/project'
+
+print(is_project_file('/home/user/project/main.py', project_root))
+# Output: True
+
+print(is_project_file('/usr/lib/python3.9/os.py', project_root))
+# Output: False
+```
+
+---
+
+### kill_process_on_port
+
+Kills any process running on the specified port (Unix/Linux/macOS only).
+
+#### Signature
+
+```python
+def kill_process_on_port(port: int) -> None
+```
+
+#### Parameters
+
+<ParamField path="port" type="int" required>
+  Port number to check and kill process on
+</ParamField>
+
+#### Example Usage
+
+```python
+from utils.utils import kill_process_on_port
+
+# Kill any process on port 8000
+kill_process_on_port(8000)
+```
+
+#### Notes
+
+- Uses `lsof` to find process ID
+- Uses `os.kill()` with `SIGKILL` to terminate
+- Silently returns if no process found
+- Unix/Linux/macOS only (requires `lsof` command)
+
+---
+
+## Complete Workflow Example
+
+```python
+import os
+from utils.utils import (
+    parse_error_stack,
+    build_adjacency_list,
+    get_nth_related_files,
+    run_mock_repopack
+)
+
+# 1. Parse error to get involved files
+error_trace = """Traceback..."""
+error_files = parse_error_stack(error_trace)
+
+# 2. Build dependency graph
+project_root = os.getcwd()
+graph = build_adjacency_list(error_files, project_root)
+
+# 3. Find all related files
+all_related = get_nth_related_files(error_files, graph)
+
+# 4. Package context for AI analysis
+context = run_mock_repopack(list(all_related))
+
+print(f"Found {len(all_related)} related files")
+print(f"Context size: {len(context)} characters")
+```
+
+## Notes
+
+- All file operations gracefully handle missing or invalid files
+- `build_adjacency_list` uses AST parsing to safely analyze Python syntax
+- Syntax errors in source files don't stop the analysis
+- File paths are resolved relative to project root and current directory
+- The module handles both absolute and relative import paths
+- External library imports (not in project) are safely ignored

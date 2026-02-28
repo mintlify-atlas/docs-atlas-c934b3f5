@@ -1,0 +1,245 @@
+---
+title: "Environment Variables"
+description: "Complete reference for Splat environment variables"
+---
+
+## Overview
+
+Splat uses environment variables for configuration, loaded from `.env` files using `python-dotenv`. This page documents all available environment variables.
+
+## Required Variables
+
+These variables must be set for Splat to function:
+
+<ParamField path="API" type="string" required>
+  Your Groq API key for accessing AI models. Used by the main error processing pipeline.
+
+  ```bash .env
+  API=gsk_your_api_key_here
+  ```
+
+  <Warning>
+  Keep this key secure. Never commit it to version control or share it publicly.
+  </Warning>
+
+  **Where to get it**: [Groq Console](https://console.groq.com) → API Keys
+</ParamField>
+
+<ParamField path="API_KEY" type="string" required>
+  Alternative API key variable used by the agent system. Should typically be set to the same value as `API`.
+
+  ```bash .env
+  API_KEY=gsk_your_api_key_here
+  ```
+
+  <Info>
+  Both `API` and `API_KEY` are required as different components of Splat reference different variable names.
+  </Info>
+</ParamField>
+
+## Optional Variables
+
+<ParamField path="MODEL" type="string" default="llama3-70b-8192">
+  The Groq model to use for error analysis. Used by the agent system.
+
+  ```bash .env
+  MODEL=llama3-70b-8192
+  ```
+
+  **Available models**:
+  - `llama3-70b-8192` - Best for complex error analysis (recommended)
+  - `llama3-8b-8192` - Faster, suitable for simpler errors
+  - `mixtral-8x7b-32768` - Alternative with larger context window
+
+  See [Groq API Configuration](/configuration/groq-api) for model details.
+</ParamField>
+
+## Configuration Example
+
+Here's a complete `.env` file example:
+
+```bash .env
+# Groq API Configuration
+API=gsk_your_groq_api_key_here
+API_KEY=gsk_your_groq_api_key_here
+
+# Model Selection (optional)
+MODEL=llama3-70b-8192
+```
+
+## Environment Variable Loading
+
+Splat loads environment variables using `python-dotenv` in the following order:
+
+1. **System environment variables** - Highest priority
+2. **Project `.env` file** - In your current working directory
+3. **Home `.env` file** - In your home directory
+
+<Info>
+Variables defined in higher priority locations override those in lower priority locations.
+</Info>
+
+## Usage in Code
+
+Splat accesses environment variables in two main locations:
+
+### Error Processing Pipeline
+
+**File**: `process/process.py:11`
+
+```python
+from groq import Groq
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+client = Groq(api_key=os.getenv("API"))
+```
+
+The `API` variable is used to initialize the Groq client for error analysis.
+
+### Agent System
+
+**File**: `agents/agents.py:37-38`
+
+```python
+bug_zapper = Agent(
+    model_name=os.getenv('MODEL'),
+    api_key=os.getenv('API_KEY'),
+    # ...
+)
+```
+
+The `MODEL` and `API_KEY` variables configure the AI agent for debugging.
+
+## Security Best Practices
+
+<Warning>
+Always protect your environment variables, especially API keys.
+</Warning>
+
+### Recommended Security Measures
+
+1. **Never commit `.env` files**
+
+   Add to `.gitignore`:
+   ```bash .gitignore
+   .env
+   .env.*
+   !.env.example
+   ```
+
+2. **Use `.env.example` for documentation**
+
+   Create a template without sensitive values:
+   ```bash .env.example
+   API=your_groq_api_key_here
+   API_KEY=your_groq_api_key_here
+   MODEL=llama3-70b-8192
+   ```
+
+3. **Set proper file permissions**
+
+   ```bash
+   chmod 600 .env
+   ```
+
+4. **Use different keys per environment**
+
+   Maintain separate API keys for development, staging, and production.
+
+5. **Rotate keys regularly**
+
+   Generate new API keys periodically in the [Groq Console](https://console.groq.com).
+
+## Validation
+
+You can verify your environment variables are loaded correctly:
+
+```python
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+print(f"API configured: {bool(os.getenv('API'))}")
+print(f"API_KEY configured: {bool(os.getenv('API_KEY'))}")
+print(f"MODEL: {os.getenv('MODEL', 'llama3-70b-8192')}")
+```
+
+<Note>
+This will show whether variables are set without exposing the actual values.
+</Note>
+
+## Troubleshooting
+
+### Variables Not Loading
+
+**Problem**: Environment variables are not being recognized.
+
+**Solutions**:
+- Verify `.env` file is in the correct directory
+- Check for typos in variable names
+- Ensure no spaces around the `=` sign
+- Try using absolute paths: `load_dotenv('/absolute/path/to/.env')`
+
+### API Key Invalid
+
+**Problem**: Getting authentication errors from Groq API.
+
+**Solutions**:
+- Verify the API key is correct in `.env`
+- Check that the key hasn't expired
+- Ensure you're using the correct key (Groq keys start with `gsk_`)
+- Generate a new key in the [Groq Console](https://console.groq.com)
+
+### Model Not Found
+
+**Problem**: Error about model not being available.
+
+**Solutions**:
+- Verify the model name is spelled correctly
+- Check [Groq's available models](https://console.groq.com/docs/models)
+- Use the default by removing the `MODEL` variable
+
+## Environment-Specific Configuration
+
+For different environments, you can use multiple `.env` files:
+
+```bash
+.env                 # Default configuration
+.env.development     # Development overrides
+.env.production      # Production settings
+.env.local          # Local machine overrides (gitignored)
+```
+
+Load specific environments:
+
+```python
+from dotenv import load_dotenv
+import os
+
+env = os.getenv('ENVIRONMENT', 'development')
+load_dotenv(f'.env.{env}')
+load_dotenv('.env')  # Fallback to default
+```
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Initial Setup" icon="gear" href="/configuration/setup">
+    Step-by-step setup guide
+  </Card>
+
+  <Card title="Groq API" icon="brain" href="/configuration/groq-api">
+    Learn about Groq API configuration
+  </Card>
+
+  <Card title="Troubleshooting" icon="wrench" href="/advanced/troubleshooting">
+    Common issues and solutions
+  </Card>
+
+  <Card title="Security" icon="shield" href="/advanced/troubleshooting">
+    Security best practices
+  </Card>
+</CardGroup>

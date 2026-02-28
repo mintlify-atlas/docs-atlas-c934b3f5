@@ -1,0 +1,153 @@
+---
+title: Bug Zapper Agent
+description: AI-powered debugging agent that analyzes error tracebacks and provides structured solutions
+---
+
+## Overview
+
+The Bug Zapper agent is a specialized debugging assistant built with PydanticAI that analyzes programming error tracebacks and provides actionable, structured advice for fixing bugs.
+
+## Dependencies
+
+### FlagDependencies
+
+Dataclass for managing agent dependencies and file paths.
+
+<ParamField path="flag" type="str" required>
+  Configuration flag for the agent
+</ParamField>
+
+<ParamField path="file_path" type="Union[str, Path]" required>
+  Path to the file being analyzed. Automatically converted to Path object in `__post_init__`
+</ParamField>
+
+```python
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Union
+
+@dataclass
+class FlagDependencies:
+    flag: str
+    file_path: Union[str, Path]
+    
+    def __post_init__(self):
+        self.file_path = Path(self.file_path)
+```
+
+## Result Model
+
+### ZapperResult
+
+Structured output model for bug analysis results.
+
+<ParamField path="path" type="str" required>
+  The full path to the file where the error occurs
+</ParamField>
+
+<ParamField path="file" type="str" required>
+  The name of the file with the error
+</ParamField>
+
+<ParamField path="line" type="int" required>
+  Line number where the error occurred. Must be >= 0
+</ParamField>
+
+<ParamField path="what" type="str" required>
+  Natural language explanation of what the error is
+</ParamField>
+
+<ParamField path="todo" type="str" required>
+  Step-by-step instructions in natural language to fix the error
+</ParamField>
+
+```python
+from pydantic import BaseModel, Field
+
+class ZapperResult(BaseModel):
+    path: str = Field("The path to the file where the error occurs")
+    file: str = Field("The name of the file with the error")
+    line: int = Field("Which line the error occured in", ge=0)
+    what: str = Field("Explanation in natural language of what the error is")
+    todo: str = Field("Describe steps to take in natural language in order to fix the error")
+```
+
+## Agent Configuration
+
+### bug_zapper
+
+The main Bug Zapper agent instance configured with PydanticAI.
+
+```python
+from pydantic_ai import Agent
+import os
+
+bug_zapper = Agent(
+    model_name=os.getenv('MODEL'),
+    api_key=os.getenv('API_KEY'),
+    deps_type=FlagDependencies,
+    result_type=ZapperResult,
+    system_prompt=(
+        'You are an expert software debugging assistant specializing in programming error analysis. '
+        'Your task is to analyze error tracebacks and provide structured, actionable advice. '
+    )
+)
+```
+
+**Configuration Parameters:**
+
+- `model_name`: AI model name from environment variable `MODEL`
+- `api_key`: API key from environment variable `API_KEY`
+- `deps_type`: Uses `FlagDependencies` for dependency injection
+- `result_type`: Returns structured `ZapperResult` objects
+- `system_prompt`: Specialized prompt for debugging expertise
+
+## Usage Example
+
+```python
+from agents.agents import bug_zapper, FlagDependencies
+import asyncio
+
+async def analyze_error():
+    # Create dependencies
+    deps = FlagDependencies(
+        flag="strict",
+        file_path="/path/to/buggy_file.py"
+    )
+    
+    # Run the agent with error traceback
+    result = await bug_zapper.run(
+        """Traceback (most recent call last):
+  File "example.py", line 15, in <module>
+    result = divide(10, 0)
+  File "example.py", line 5, in divide
+    return a / b
+ZeroDivisionError: division by zero
+""",
+        deps=deps
+    )
+    
+    print(f"Error in: {result.data.file}:{result.data.line}")
+    print(f"What: {result.data.what}")
+    print(f"Fix: {result.data.todo}")
+
+asyncio.run(analyze_error())
+```
+
+## Environment Variables
+
+```bash
+MODEL=gpt-4  # AI model to use
+API_KEY=your_api_key_here  # API key for the AI service
+```
+
+## Tools
+
+The agent supports custom tool decorators via `@bug_zapper.tool` for extending functionality with additional debugging capabilities.
+
+```python
+@bug_zapper.tool
+def custom_debugging_tool(ctx: RunContext):
+    # Add custom debugging logic
+    pass
+```

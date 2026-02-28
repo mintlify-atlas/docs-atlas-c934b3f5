@@ -1,0 +1,103 @@
+---
+title: Known Issues
+description: Current limitations and known bugs in Splat
+icon: bug
+---
+
+## Known Bugs
+
+The following issues are currently known and being worked on:
+
+<Warning>
+  These limitations may affect your workflow. We recommend reviewing them before using Splat in production environments.
+</Warning>
+
+### Code Formatting Not Preserved
+
+<Card title="Formatting Configuration" icon="code">
+  **Issue:** Splat will not conform to any formatting configurations when inserting code.
+  
+  **Impact:** After Splat fixes your code, the formatting may not match your project's style guide or linter configuration.
+  
+  **Workaround:** Run your code formatter after Splat makes changes:
+  ```bash
+  # For Python projects
+  black your_file.py
+  
+  # For JavaScript/TypeScript
+  prettier --write your_file.js
+  ```
+</Card>
+
+### Sub-module Entrypoint Issues
+
+<Card title="Root Directory Requirement" icon="folder">
+  **Issue:** Splat does not do well with running sub-module entrypoints that do not originate in the root directory.
+  
+  **Impact:** If your application entrypoint is in a subdirectory (e.g., `src/main.py`, `app/server.py`), Splat may fail to properly capture context or generate accurate fixes.
+  
+  **Workaround:** 
+  - Run Splat from your project root directory
+  - Create a wrapper script in the root that imports and runs your sub-module
+  - Use relative paths from the root:
+    ```bash
+    splat squash "python3 app/main.py"
+    ```
+</Card>
+
+## Limitations
+
+### Context Gathering
+
+- **Deep Dependency Trees:** Very large codebases with complex dependency graphs may hit context limits when using the `-r` flag
+- **Binary Files:** Splat cannot analyze binary files or compiled code
+- **Encrypted Files:** Files that require decryption are not accessible
+
+### Error Detection
+
+- **Runtime Errors Only:** Splat works best with runtime errors that produce stack traces
+- **Logic Errors:** Silent logic errors without exceptions may not be detected
+- **Performance Issues:** Slow code without errors won't trigger Splat's analysis
+
+### Language Support
+
+While Splat is designed primarily for Python:
+- Other languages may have varying levels of support
+- Stack trace parsing is optimized for Python error formats
+- Multi-language projects may have reduced accuracy
+
+## Upcoming Fixes
+
+<Info>
+  The development team is actively working on addressing these issues. Check the project repository for updates.
+</Info>
+
+### Roadmap
+
+- **Formatter Integration:** Support for detecting and applying project formatting rules
+- **Sub-module Support:** Improved handling of non-root entrypoints
+- **Configuration File:** `.splat` config file for project-specific settings
+- **Extended Language Support:** Better multi-language stack trace parsing
+
+## Reporting Issues
+
+Found a bug not listed here? Please help improve Splat:
+
+1. Check if the issue already exists in the repository
+2. Gather the following information:
+   - Operating system and version
+   - Python version
+   - Splat version
+   - Complete error message or unexpected behavior
+   - Minimal reproduction steps
+3. Submit a detailed bug report following the [Contributing Guide](/advanced/contributing)
+
+## Working Around Issues
+
+General tips for avoiding known issues:
+
+- Always run Splat from your project root directory
+- Use a post-processing formatter for code style consistency
+- Keep your dependencies up to date
+- Test Splat on a branch before applying fixes to main
+- Review generated fixes before committing them

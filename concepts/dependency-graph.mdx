@@ -1,0 +1,448 @@
+---
+title: 'Dependency Graph Building'
+description: 'How Splat maps import relationships to build comprehensive error context'
+icon: 'diagram-project'
+---
+
+## Overview
+
+When debugging complex errors, understanding file relationships is crucial. Splat's dependency graph system uses AST parsing to build a complete map of import relationships, ensuring the LLM sees all relevant context—not just the file where the error surfaced.
+
+## Why Dependency Graphs Matter
+
+Consider this error scenario:
+
+```python main.py
+from utils import calculate
+
+result = calculate(42)  # TypeError: calculate() missing 1 required argument
+```
+
+```python utils.py
+def calculate(x, y):  # Function signature was recently changed
+    return x + y
+```
+
+<Warning>
+  Without seeing `utils.py`, an LLM might suggest fixing the call site when the real issue is the function signature change. Dependency graphs solve this.
+</Warning>
+
+## Graph Construction
+
+### Adjacency List Structure
+
+Splat builds a directed graph where each file points to its imports:
+
+```python
+{
+  "/path/to/main.py": ["/path/to/utils.py", "/path/to/config.py"],
+  "/path/to/utils.py": ["/path/to/helpers.py"],
+  "/path/to/helpers.py": []
+}
+```
+
+### Build Process
+
+The `build_adjacency_list` function recursively processes files:
+
+```python utils/utils.py
+def build_adjacency_list(files: List[str], project_root: str) -> Dict[str, List[str]]:
+    adjacency_list = {}
+    processed_files = set()
+
+    def process_file(file: str):
+        if file in processed_files or not is_project_file(file, project_root):
+            return
+
+        processed_files.add(file)
+        imports = set()
+        tree = None
+
+        try:
+            with open(file, 'r') as f:
+                content = f.read()
+                try:
+                    tree = ast.parse(content)
+                    for node in ast.walk(tree):
+                        if isinstance(node, ast.Import):
+                            imports.update(alias.name for alias in node.names)
+                        elif isinstance(node, ast.ImportFrom) and node.module:
+                            imports.add(node.module)
+                except SyntaxError:
+                    pass  # Skip files with syntax errors
+        except FileNotFoundError:
+            return
+```
+
+<Steps>
+  <Step title="Read File">
+    Open the Python file and read its contents
+  </Step>
+  <Step title="Parse AST">
+    Use Python's `ast` module to build an abstract syntax tree
+  </Step>
+  <Step title="Extract Imports">
+    Walk the AST and collect all import statements
+  </Step>
+  <Step title="Resolve Paths">
+    Convert module names to file paths within the project
+  </Step>
+  <Step title="Recurse">
+    Repeat for each imported file
+  </Step>
+</Steps>
+
+## AST-Based Import Extraction
+
+### Supported Import Styles
+
+Splat handles all Python import patterns:
+
+<CodeGroup>
+```python Direct Import
+import utils
+# AST node: ast.Import
+# Extracts: "utils"
+```
+
+```python From Import
+from utils import calculate
+# AST node: ast.ImportFrom
+# Extracts: "utils"
+```
+
+```python Nested Import
+from utils.helpers import validate
+# AST node: ast.ImportFrom
+# Extracts: "utils.helpers"
+```
+
+```python Multiple Imports
+import os, sys, json
+# AST node: ast.Import with multiple aliases
+# Extracts: ["os", "sys", "json"]
+```
+</CodeGroup>
+
+### AST Walking
+
+The code uses `ast.walk()` to traverse the entire syntax tree:
+
+```python
+for node in ast.walk(tree):
+    if isinstance(node, ast.Import):
+        # import x, y, z
+        imports.update(alias.name for alias in node.names)
+    elif isinstance(node, ast.ImportFrom) and node.module:
+        # from x import y
+        imports.add(node.module)
+```
+
+<Info>
+  `ast.walk()` performs a depth-first traversal, visiting every node including nested imports within functions or classes.
+</Info>
+
+## Path Resolution
+
+### Module to File Mapping
+
+Once module names are extracted, Splat resolves them to file paths:
+
+```python utils/utils.py
+for imp in imports:
+    module_paths = []
+    if '.' in imp:
+        # Nested module: utils.helpers → utils/helpers.py
+        module_paths.append(os.path.join(project_root, *imp.split('.')) + '.py')
+    else:
+        # Check relative to current file, then project root
+        module_paths.extend([
+            os.path.join(file_dir, f"{imp}.py"),
+            os.path.join(project_root, f"{imp}.py")
+        ])
+
+    for module_path in module_paths:
+        if os.path.exists(module_path):
+            adjacency_list[file].append(module_path)
+            process_file(module_path)  # Recursive call
+            break
+```
+
+### Resolution Strategy
+
+<Steps>
+  <Step title="Nested Modules">
+    Convert dotted paths: `utils.helpers` → `utils/helpers.py`
+  </Step>
+  <Step title="Relative Imports">
+    Check same directory as importing file first
+  </Step>
+  <Step title="Project Root">
+    Fall back to checking project root directory
+  </Step>
+  <Step title="Validation">
+    Only add paths that exist on the filesystem
+  </Step>
+</Steps>
+
+<Note>
+  Standard library imports (like `os`, `sys`) won't resolve to project files and are safely ignored.
+</Note>
+
+## Graph Traversal
+
+### Finding Related Files
+
+Once the graph is built, Splat traverses it to find all related files:
+
+```python utils/utils.py
+def get_nth_related_files(start_files: List[str], graph: Dict[str, List[str]]) -> Set[str]:
+  related_files = set(start_files)
+  planned_visit = list(start_files)
+  possible_files = set()
+
+  while planned_visit:
+    current = planned_visit.pop(0)  # BFS: process queue front
+    possible_files.add(current)
+
+    for neighbor in graph.get(current, []):
+      if neighbor not in related_files:
+        related_files.add(neighbor)
+        planned_visit.append(neighbor)
+
+  return possible_files
+```
+
+### Breadth-First Search
+
+The traversal uses BFS to explore the graph:
+
+<Frame>
+  <div className="mermaid">
+    graph LR
+      A[main.py] --> B[utils.py]
+      A --> C[config.py]
+      B --> D[helpers.py]
+      B --> E[validators.py]
+      D --> F[constants.py]
+      style A fill:#ff6b6b
+      style B fill:#ffd93d
+      style C fill:#ffd93d
+      style D fill:#6bcf7f
+      style E fill:#6bcf7f
+      style F fill:#4ecdc4
+  </div>
+</Frame>
+
+<Steps>
+  <Step title="Start Files" icon="flag">
+    Begin with error trace files (red)
+  </Step>
+  <Step title="First Degree" icon="arrow-right">
+    Add direct imports (yellow)
+  </Step>
+  <Step title="Second Degree" icon="arrows-alt">
+    Add imports of imports (green)
+  </Step>
+  <Step title="Nth Degree" icon="infinity">
+    Continue until all relationships exhausted (blue)
+  </Step>
+</Steps>
+
+<Tip>
+  BFS ensures closer relationships are processed first, which can be useful for prioritizing context if token limits are hit.
+</Tip>
+
+## Example: Complete Graph Build
+
+Let's trace a full example:
+
+### Input Files
+
+```python main.py
+from utils import calculate
+from config import settings
+
+result = calculate(settings.value)  # Error occurs here
+```
+
+```python utils.py
+from helpers import validate
+
+def calculate(x):
+    return validate(x) * 2
+```
+
+```python helpers.py
+from constants import MAX_VALUE
+
+def validate(x):
+    return min(x, MAX_VALUE)
+```
+
+### Graph Output
+
+```python
+{
+  "/project/main.py": ["/project/utils.py", "/project/config.py"],
+  "/project/utils.py": ["/project/helpers.py"],
+  "/project/helpers.py": ["/project/constants.py"],
+  "/project/config.py": [],
+  "/project/constants.py": []
+}
+```
+
+### Traversal Result
+
+Starting from `main.py` (error file):
+
+```python
+get_nth_related_files(["/project/main.py"], graph)
+# Returns:
+{
+  "/project/main.py",      # Start file
+  "/project/utils.py",     # Direct import
+  "/project/config.py",    # Direct import
+  "/project/helpers.py",   # 2nd degree
+  "/project/constants.py"  # 3rd degree
+}
+```
+
+<Info>
+  All 5 files will be included in the context sent to the LLM, providing complete visibility into the error chain.
+</Info>
+
+## Project Boundary Enforcement
+
+### Filtering External Imports
+
+Splat only processes files within your project:
+
+```python utils/utils.py
+def is_project_file(file_path: str, project_root: str) -> bool:
+  return os.path.commonpath([file_path, project_root]) == project_root
+```
+
+```python
+def process_file(file: str):
+    if file in processed_files or not is_project_file(file, project_root):
+        return  # Skip if already processed or outside project
+```
+
+<Warning>
+  Without this check, Splat would try to process standard library files like `/usr/lib/python3.9/os.py`, which would be wasteful and slow.
+</Warning>
+
+## Error Handling
+
+### Graceful Degradation
+
+The graph builder handles various failure modes:
+
+<AccordionGroup>
+  <Accordion title="Syntax Errors">
+    Files with syntax errors (the likely cause of the original error) are still added to the graph, but their imports are skipped:
+
+    ```python
+    try:
+        tree = ast.parse(content)
+    except SyntaxError:
+        pass  # Skip import extraction, but file is still in graph
+    ```
+  </Accordion>
+
+  <Accordion title="Missing Files">
+    Import references to non-existent files are silently skipped:
+
+    ```python
+    for module_path in module_paths:
+        if os.path.exists(module_path):
+            adjacency_list[file].append(module_path)
+            break  # Stop searching once found
+    ```
+  </Accordion>
+
+  <Accordion title="Circular Dependencies">
+    The `processed_files` set prevents infinite loops:
+
+    ```python
+    if file in processed_files:
+        return  # Already processed, skip
+    processed_files.add(file)
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Usage in Splat
+
+### Relational Mode (-r Flag)
+
+The dependency graph is activated with the `-r` flag:
+
+```python relational.py
+if flag == '-r':
+  graph = build_adjacency_list(collected_traceback_files, project_root)
+  all_related_files = get_nth_related_files(collected_traceback_files, graph)
+  return traceback, error_information, run_mock_repopack(list(all_related_files))
+else:
+  return traceback, error_information, run_mock_repopack(collected_traceback_files)
+```
+
+<Tabs>
+  <Tab title="Without -r">
+    Only error trace files:
+    ```bash
+    splat python main.py
+    # Context: [main.py]
+    ```
+  </Tab>
+
+  <Tab title="With -r">
+    Error files + all dependencies:
+    ```bash
+    splat -r python main.py
+    # Context: [main.py, utils.py, config.py, helpers.py, constants.py]
+    ```
+  </Tab>
+</Tabs>
+
+## Performance Considerations
+
+<CardGroup cols={2}>
+  <Card title="Caching" icon="bolt">
+    The `processed_files` set ensures each file is parsed only once, even if imported by multiple files.
+  </Card>
+
+  <Card title="Lazy Evaluation" icon="clock">
+    Files are processed only when needed during traversal, avoiding upfront cost.
+  </Card>
+
+  <Card title="AST Over Regex" icon="code">
+    AST parsing is more robust than regex for extracting imports, handling edge cases correctly.
+  </Card>
+
+  <Card title="Boundary Checks" icon="shield">
+    Project boundary filtering prevents processing hundreds of stdlib files.
+  </Card>
+</CardGroup>
+
+## Limitations
+
+<Note>
+  **Dynamic Imports:** The current implementation doesn't handle `importlib` or `__import__()` calls, which require runtime analysis.
+
+  **Conditional Imports:** Imports inside `if` blocks are always extracted, even if the condition is false at runtime.
+
+  **Relative Imports:** Currently only supports absolute imports and simple relative imports (`.module`), not complex relative paths (`..parent.module`).
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Git Awareness" icon="git" href="/concepts/git-awareness">
+    Learn how Splat integrates with Git for context
+  </Card>
+  <Card title="Error Analysis" icon="bug" href="/concepts/error-analysis">
+    See how dependency context improves LLM analysis
+  </Card>
+</CardGroup>

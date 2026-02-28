@@ -1,0 +1,407 @@
+---
+title: 'Interactive Mode'
+description: 'Use Splat in interactive shell mode for iterative debugging sessions'
+---
+
+## Overview
+
+Splat includes an **interactive shell mode** (internally called "Zap CLI") that provides a REPL-style interface for debugging sessions. This mode is currently in development and offers experimental features for advanced workflows.
+
+<Warning>
+  Interactive mode is experimental and under active development. Some features may not be fully stable.
+</Warning>
+
+## Starting Interactive Mode
+
+Launch the interactive shell by running `splat` without any subcommands:
+
+```bash
+splat
+```
+
+You'll see the welcome prompt:
+
+```
+Welcome to the Zap CLI. Type help or ? to list commands.
+
+zap> 
+```
+
+## Available Commands
+
+### hello
+
+Test command that prints a greeting.
+
+```bash
+zap> hello
+Hello!
+```
+
+**Usage:**
+```bash
+hello
+```
+
+**Description:** Simple test command to verify the shell is working.
+
+---
+
+### echo
+
+Echo back any input you provide.
+
+```bash
+zap> echo test message
+test message
+```
+
+**Usage:**
+```bash
+echo <message>
+```
+
+**Description:** Repeats the input back to stdout. Useful for testing.
+
+---
+
+### start
+
+Start a tmux-based terminal session with process monitoring.
+
+```bash
+zap> start
+tmux session and monitoring started successfully
+```
+
+**Usage:**
+```bash
+start
+```
+
+**Description:** 
+- Creates a new tmux session named `zapper_session`
+- Opens a terminal window
+- Starts process monitoring via ZMQ
+- Initializes the Zapper debugging engine
+
+**Implementation:**
+```python
+def do_start(self, arg):
+    self.zapper = Zapper()
+    self.zapper.start()
+    self.term_sesh = TermSesh(session_name='zapper_session')
+    if self.term_sesh.open_new_terminal():
+        self.term_sesh.monitor = ProcessMonitor(self.term_sesh)
+        self.term_sesh.monitor.start_monitoring()
+```
+
+**Prerequisites:**
+- tmux must be installed (`brew install tmux` on macOS)
+- ZMQ publisher running on port 5555 (default)
+
+---
+
+### send
+
+Send a command to the active tmux terminal session.
+
+```bash
+zap> send ls -la
+Command sent: ls -la
+```
+
+**Usage:**
+```bash
+send <command>
+```
+
+**Description:** Executes a command in the tmux terminal session created by `start`.
+
+**Error Handling:**
+```bash
+zap> send echo "hello"
+No active terminal session. Use 'start' first.
+```
+
+You must run `start` before using `send`.
+
+---
+
+### exit / quit
+
+Exit the interactive shell and clean up resources.
+
+```bash
+zap> exit
+Goodbye!
+```
+
+**Usage:**
+```bash
+exit
+```
+or
+```bash
+quit
+```
+or press `Ctrl+D` (EOF)
+
+**Description:** 
+- Stops process monitoring
+- Terminates the terminal process
+- Kills the tmux session
+- Exits the shell
+
+**Cleanup Process:**
+```python
+def do_exit(self, arg):
+    if self.term_sesh:
+        if self.term_sesh.monitor:
+            self.term_sesh.monitor.is_running = False
+        if self.term_sesh.terminal_process:
+            self.term_sesh.terminal_process.terminate()
+        self.term_sesh.kill_tmux_session()
+    return True
+```
+
+---
+
+### help / ?
+
+Display available commands and their descriptions.
+
+```bash
+zap> help
+
+Documented commands (type help <topic>):
+========================================
+EOF  echo  exit  hello  help  quit  send  start
+```
+
+**Usage:**
+```bash
+help [command]
+```
+
+**Examples:**
+```bash
+zap> help
+# Lists all commands
+
+zap> help start
+# Shows help for 'start' command
+```
+
+---
+
+## Command Passthrough
+
+If you enter a command that isn't recognized AND you have an active terminal session, the command will be automatically sent to the tmux terminal.
+
+```bash
+zap> start
+tmux session and monitoring started successfully
+
+zap> python3 test.py
+# This gets sent to the tmux terminal automatically
+```
+
+Without an active session:
+```bash
+zap> python3 test.py
+Unknown command: python3 test.py
+```
+
+## Interactive Workflow
+
+Typical debugging session:
+
+```bash
+$ splat
+Welcome to the Zap CLI. Type help or ? to list commands.
+
+zap> start
+tmux session and monitoring started successfully
+
+zap> send python3 app.py
+Command sent: python3 app.py
+
+# Monitor output in tmux window
+# Errors automatically captured
+
+zap> exit
+Goodbye!
+```
+
+## Architecture
+
+### Components
+
+**ZapShell (cmd.Cmd)**
+- Interactive REPL interface
+- Command parsing and routing
+- Session state management
+
+**Zapper**
+- ZMQ-based message broker
+- Runs on port 5555 (default)
+- Publishes error events
+
+**TermSesh**
+- tmux session manager
+- Terminal window controller
+- Command execution interface
+
+**ProcessMonitor**
+- Watches terminal output
+- Detects errors in real-time
+- Sends events via ZMQ
+
+### Communication Flow
+
+```
+┌─────────────┐
+│  ZapShell   │
+└──────┬──────┘
+       │
+       ├─> Zapper (ZMQ Publisher)
+       │
+       └─> TermSesh
+           │
+           ├─> tmux session
+           │
+           └─> ProcessMonitor
+               │
+               └─> ZMQ events
+```
+
+## Session Management
+
+### Session Name
+
+Default: `zapper_session`
+
+```python
+self.term_sesh = TermSesh(session_name='zapper_session')
+```
+
+### Terminal Lifecycle
+
+1. **Create**: `start` command creates tmux session
+2. **Monitor**: ProcessMonitor watches for errors
+3. **Execute**: `send` executes commands in session
+4. **Cleanup**: `exit` terminates and removes session
+
+### Session Status Checking
+
+The shell checks if the terminal is still active before each command:
+
+```python
+def precmd(self, line):
+    if self.term_sesh and not self.term_sesh.is_terminal_active():
+        click.echo("Terminal session ended unexpectedly")
+    return line
+```
+
+## Configuration
+
+### ZMQ Port
+
+Default port: `5555`
+
+```python
+class Zapper:
+    def __init__(self, port=5555):
+        self.context = zmq.Context()
+```
+
+To use a custom port, you'll need to modify the source code.
+
+### tmux Settings
+
+Interactive mode uses system tmux configuration. Customize via `~/.tmux.conf`:
+
+```bash
+# Example tmux config
+set -g mouse on
+set -g history-limit 10000
+```
+
+## Troubleshooting
+
+### tmux Not Found
+
+```bash
+zap> start
+Failed to start terminal session
+```
+
+**Solution:** Install tmux:
+```bash
+brew install tmux  # macOS
+sudo apt install tmux  # Linux
+```
+
+### Session Already Exists
+
+If `zapper_session` already exists:
+
+```bash
+tmux kill-session -t zapper_session
+```
+
+Then retry `start` in the shell.
+
+### Port Already in Use
+
+If ZMQ port 5555 is occupied:
+
+```bash
+lsof -i :5555
+kill <PID>
+```
+
+## Limitations
+
+<Warning>
+  - Interactive mode is experimental
+  - Limited error handling for edge cases
+  - Requires tmux installation
+  - Single session support only
+  - No persistent session history
+</Warning>
+
+## Future Enhancements
+
+<Note>
+  Planned features:
+  - Multi-session support
+  - Persistent command history
+  - Configurable ZMQ ports
+  - Enhanced error auto-detection
+  - Integration with `squash` command
+  - Session save/restore
+</Note>
+
+## Exiting Interactive Mode
+
+Multiple ways to exit:
+
+- Type `exit`
+- Type `quit`
+- Press `Ctrl+D`
+- Press `Ctrl+C` (KeyboardInterrupt)
+
+All methods properly clean up tmux sessions and monitoring threads.
+
+## Version
+
+Check the Splat version:
+
+```bash
+$ splat version
+Zap CLI v0.1.0
+```
+
+Note: The version command is available outside interactive mode.

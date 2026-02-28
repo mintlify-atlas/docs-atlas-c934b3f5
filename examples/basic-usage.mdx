@@ -1,0 +1,277 @@
+---
+title: 'Basic Usage'
+description: 'Learn how to use Splat for quick debugging with real-world examples'
+icon: 'play'
+---
+
+## Quick Start
+
+Splat is designed to be simple: just prefix your normal run command with `splat squash`. When your code encounters an error, Splat captures it, analyzes the context, and provides an AI-powered fix.
+
+## Basic Syntax
+
+```bash
+splat squash "<your-normal-command>"
+```
+
+Splat works with any language or framework - just run your code the way you normally would.
+
+## Python Examples
+
+### Fixing a Syntax Error
+
+<CodeGroup>
+```python test.py (Before)
+def hello():
+    print("hello"
+if __name__ == "__main__":    hello()
+```
+
+```bash Running with Splat
+$ splat squash "python3 test.py"
+
+ Analyzing error...
+ Error detected: SyntaxError - missing closing parenthesis
+ File: test.py:2
+
+ Suggested fix:
+  Line 2: print("hello")
+
+ Fix applied successfully!
+```
+
+```python test.py (After)
+def hello():
+    print("hello")
+
+if __name__ == "__main__":
+    hello()
+```
+</CodeGroup>
+
+The error was a missing closing parenthesis in the print statement. Splat detected it, suggested the fix, and applied it automatically.
+
+### FastAPI Runtime Errors
+
+<CodeGroup>
+```python main.py (Error Case)
+from fastapi import FastAPI
+from pydantic import BaseModel
+
+app = FastAPI()
+
+class Item(BaseModel):
+    id: int
+    name: str
+    price: float
+
+items = [
+    Item(id=1, name="Laptop", price=999.99),
+    Item(id=2, name="Phone", price=499.99),
+]
+
+@app.get("/items")
+async def get_items():
+    # Returns wrong types - causes validation error
+    return [{"id": "not_an_int", "name": item.name, "price": str(item.price)} for item in items]
+```
+
+```bash Running with Splat
+$ splat squash "uvicorn main:app --reload"
+
+ Detected runtime error when calling /items endpoint
+ Error: Validation error - expected int for 'id', got str
+
+ Suggested fix:
+  Return items directly instead of transforming them:
+  return items
+
+ Fix applied!
+```
+
+```python main.py (After)
+@app.get("/items")
+async def get_items():
+    # Returns proper Item models
+    return items
+```
+</CodeGroup>
+
+## JavaScript Examples
+
+### Const Reassignment Error
+
+<CodeGroup>
+```javascript test.js (Before)
+const num = 42;
+
+function faultyFunction() {
+  num = 10; // Attempt to reassign a constant
+  console.log(num);
+}
+
+faultyFunction();
+```
+
+```bash Running with Splat
+$ splat squash "node test.js"
+
+ Analyzing error...
+ TypeError: Assignment to constant variable
+ File: test.js:4
+
+ Suggested fix:
+  Change 'const' to 'let' if reassignment is needed
+
+ Fix applied successfully!
+```
+
+```javascript test.js (After)
+let num = 42;
+
+function faultyFunction() {
+  num = 10;
+  console.log(num);
+}
+
+faultyFunction();
+```
+</CodeGroup>
+
+### React JSX Syntax Error
+
+<CodeGroup>
+```jsx App.js (Before)
+function App() {
+  return (
+    <div className="App">
+      <header className="App-header">
+        <img src={logo} className="App-logo" alt="logo"
+        <p>Edit <code>src/App.js</code> and save to reload.</p>
+      </header>
+    </div>
+  );
+}
+```
+
+```bash Running with Splat
+$ splat squash "npm start"
+
+ Parsing error: Unexpected token
+ File: src/App.js:8
+
+ Suggested fix:
+  Missing closing tag for <img> element
+  Add '/>' to close the self-closing tag
+
+ Fix applied!
+```
+
+```jsx App.js (After)
+function App() {
+  return (
+    <div className="App">
+      <header className="App-header">
+        <img src={logo} className="App-logo" alt="logo" />
+        <p>Edit <code>src/App.js</code> and save to reload.</p>
+      </header>
+    </div>
+  );
+}
+```
+</CodeGroup>
+
+## Java Examples
+
+### Missing Return Statement
+
+<CodeGroup>
+```java FaultyJava.java (Before)
+public class FaultyJava {
+    public static void main(String[] args) {
+        System.out.println("The result is: " + faultyMethod());
+    }
+
+    public static int faultyMethod() {
+        int a = 5;
+        int b = 10;
+
+        if (a < b) {
+            System.out.println("a is less than b");
+        }
+        // Missing return statement
+    }
+}
+```
+
+```bash Running with Splat
+$ splat squash "javac FaultyJava.java"
+
+ Compilation error: missing return statement
+ File: FaultyJava.java:15
+
+ Suggested fix:
+  Method declared to return int but has no return statement
+  Added return statement at end of method
+
+ Fix applied!
+```
+
+```java FaultyJava.java (After)
+public class FaultyJava {
+    public static void main(String[] args) {
+        System.out.println("The result is: " + faultyMethod());
+    }
+
+    public static int faultyMethod() {
+        int a = 5;
+        int b = 10;
+
+        if (a < b) {
+            System.out.println("a is less than b");
+        }
+        return a + b;
+    }
+}
+```
+</CodeGroup>
+
+## Expected Output
+
+When Splat successfully fixes an error, you'll see:
+
+```bash
+ Analyzing error stack trace...
+ Gathering context from error files...
+ Generating fix with AI...
+
+ Error: <error type and message>
+ File: <file_path>:<line_number>
+
+ Suggested Fix:
+  <clear explanation of what was wrong>
+  <what change was made>
+
+ Fix applied successfully!
+ Your code is now running without errors.
+```
+
+## Tips for Basic Usage
+
+<Tip>
+  Always run Splat from your project root directory for best results.
+</Tip>
+
+<Warning>
+  Splat respects your `.gitignore` file and won't access sensitive files or directories.
+</Warning>
+
+<Note>
+  For more complex errors involving multiple files and dependencies, use the `-r` flag for relational mode. See [Relational Mode](/examples/relational-mode) for details.
+</Note>
+
+## Next Steps
+
+- Learn about [Relational Mode](/examples/relational-mode) for deep analysis
+- See [Framework-Specific Examples](/examples/frameworks) for your tech stack
+- Explore [Environment Variables](/configuration/environment-variables) to customize behavior

@@ -1,0 +1,125 @@
+---
+title: Introduction to Splat
+description: AI-powered debugging that combines compile and runtime errors with deep contextual analysis to deliver instant, accurate solutions
+---
+
+```
+ /\_/\
+( o.o )
+ > ^ <
+```
+
+## What is Splat?
+
+Splat is an AI-powered debugging CLI tool that combines your compile and runtime errors with deep contextual analysis from your codebase. When an error occurs, Splat grabs context from every crevice of your project to deliver highly educated debug responses.
+
+Instead of manually tracing through stack traces and hunting down related files, Splat automatically:
+- Captures error output and stack traces
+- Parses affected files from the error
+- Optionally builds a dependency graph to find all related code
+- Sends everything to an AI model for instant analysis
+- Provides actionable fix recommendations
+
+Created at CalHacks 11.0, Splat is perfect for whenever you have an error that needs to be quickly fixed, understood, and prevented in the future.
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card
+    title="AI-Optimized Performance"
+    icon="bolt"
+    href="/concepts/how-it-works"
+  >
+    Uses Groq's extremely fast inference model to deliver instant debug responses with high accuracy
+  </Card>
+  <Card
+    title="Zero Configuration"
+    icon="wand-magic-sparkles"
+    href="/quickstart"
+  >
+    Works out-of-the-box globally in any project without configuration files or setup
+  </Card>
+  <Card
+    title="Git Aware"
+    icon="code-branch"
+    href="/concepts/git-awareness"
+  >
+    Automatically respects .gitignore files to exclude sensitive information from analysis
+  </Card>
+  <Card
+    title="Highly Contextual"
+    icon="diagram-project"
+    href="/examples/relational-mode"
+  >
+    Use the `-r` flag to grab all files related to your error stack through Nth-degree dependency analysis
+  </Card>
+</CardGroup>
+
+## How It Works
+
+Splat intercepts your command execution and captures any errors that occur:
+
+1. **Run your code** - Execute your application through Splat instead of directly
+2. **Error capture** - Splat captures stdout, stderr, and the full error traceback
+3. **Context gathering** - Parses the stack trace to identify all involved files
+4. **Dependency analysis** (optional with `-r` flag) - Builds an adjacency graph to find related files
+5. **AI analysis** - Sends the error and context to Groq for intelligent debugging
+6. **Get solutions** - Receive structured explanations and actionable fix recommendations
+
+## Use Cases
+
+<AccordionGroup>
+  <Accordion title="Debug Python Syntax Errors">
+    Quickly fix missing parentheses, brackets, or other syntax issues with AI-guided solutions that explain why the error occurred.
+  </Accordion>
+  <Accordion title="Resolve Import Issues">
+    Splat's relational mode (`-r`) traces through your import statements to identify circular dependencies, missing modules, or path issues.
+  </Accordion>
+  <Accordion title="Fix API Runtime Errors">
+    Debug FastAPI, Django, or Flask applications by capturing runtime errors with full request context.
+  </Accordion>
+  <Accordion title="Understand Type Errors">
+    Get clear explanations of type mismatches and validation errors with suggestions for proper type annotations.
+  </Accordion>
+</AccordionGroup>
+
+## Quick Example
+
+Instead of running your Python script directly:
+
+```bash
+python3 app.py
+```
+
+Run it through Splat:
+
+```bash
+splat squash "python3 app.py"
+```
+
+When an error occurs, Splat automatically captures it, analyzes the relevant code, and provides AI-powered debugging assistance.
+
+## Get Started
+
+Ready to supercharge your debugging workflow?
+
+<CardGroup cols={2}>
+  <Card
+    title="Installation"
+    icon="download"
+    href="/installation"
+  >
+    Install Splat using pip and set up your environment in minutes
+  </Card>
+  <Card
+    title="Quick Start Guide"
+    icon="rocket"
+    href="/quickstart"
+  >
+    Go from installation to your first successful debug in under 5 minutes
+  </Card>
+</CardGroup>
+
+<Note>
+  Splat currently works best with Python projects. Support for additional languages is in development.
+</Note>

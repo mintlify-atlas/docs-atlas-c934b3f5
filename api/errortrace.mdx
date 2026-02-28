@@ -1,0 +1,169 @@
+---
+title: "Error Trace Utilities"
+description: "Command execution and output capture utilities"
+---
+
+## Overview
+
+The `errortrace` module provides utilities for executing shell commands with real-time output capture and processing.
+
+## Functions
+
+### run_command
+
+Executes a shell command and captures stdout, stderr, and return code using threading for non-blocking I/O.
+
+#### Signature
+
+```python
+def run_command(command: str) -> Tuple[str, str, int]
+```
+
+#### Parameters
+
+<ParamField path="command" type="str" required>
+  Shell command to execute as a string (will be split using `shlex.split()`)
+</ParamField>
+
+#### Returns
+
+<ResponseField name="return" type="Tuple[str, str, int]">
+  Returns a tuple containing:
+  
+  <ResponseField name="stdout" type="str">
+    Standard output from the command, with lines joined by newlines
+  </ResponseField>
+  
+  <ResponseField name="stderr" type="str">
+    Standard error from the command, with lines joined by newlines
+  </ResponseField>
+  
+  <ResponseField name="return_code" type="int">
+    Exit code of the process (0 typically indicates success)
+  </ResponseField>
+</ResponseField>
+
+#### Implementation Details
+
+- Uses `subprocess.Popen` with separate pipes for stdout and stderr
+- Creates dedicated threads for reading each output stream
+- Non-blocking I/O prevents deadlocks on large outputs
+- Strips whitespace from each output line
+- Waits for process completion before returning
+
+#### Example Usage
+
+```python
+from errortrace import run_command
+
+# Execute a simple command
+stdout, stderr, code = run_command("python3 --version")
+print(f"Output: {stdout}")
+print(f"Exit code: {code}")
+
+# Execute a command that might fail
+stdout, stderr, code = run_command("python3 broken_script.py")
+if code != 0:
+    print(f"Error occurred: {stderr}")
+```
+
+```python
+# Run tests and capture results
+stdout, stderr, returncode = run_command("pytest tests/")
+
+if returncode == 0:
+    print("All tests passed!")
+else:
+    print(f"Test failures:\n{stderr}")
+```
+
+---
+
+### splat_find
+
+Wrapper function that executes a command and returns output as JSON.
+
+#### Signature
+
+```python
+def splat_find(command: str) -> Optional[str]
+```
+
+#### Parameters
+
+<ParamField path="command" type="str" required>
+  Shell command to execute
+</ParamField>
+
+#### Returns
+
+<ResponseField name="return" type="Optional[str]">
+  JSON string containing command results, or `None` if no command provided:
+  
+  ```json
+  {
+    "stdout": "<standard output>",
+    "stderr": "<standard error>",
+    "returncode": 0
+  }
+  ```
+</ResponseField>
+
+#### Example Usage
+
+```python
+import json
+from errortrace import splat_find
+
+# Execute and get JSON response
+result_json = splat_find("ls -la")
+
+if result_json:
+    result = json.loads(result_json)
+    print(f"Files:\n{result['stdout']}")
+    print(f"Exit code: {result['returncode']}")
+```
+
+```python
+# Check for errors
+import json
+from errortrace import splat_find
+
+result_json = splat_find("python3 script.py")
+result = json.loads(result_json)
+
+if result['returncode'] != 0:
+    print(f"Command failed with code {result['returncode']}")
+    print(f"Error output: {result['stderr']}")
+else:
+    print(f"Success: {result['stdout']}")
+```
+
+## Threading Model
+
+Both functions use Python's `threading` module to handle concurrent I/O:
+
+- **stdout thread**: Continuously reads from process stdout
+- **stderr thread**: Continuously reads from process stderr
+- **Main thread**: Waits for both threads to complete, then retrieves return code
+
+This approach prevents deadlocks that can occur when pipes fill up with large amounts of output.
+
+## Logging
+
+The module configures logging at ERROR level:
+
+```python
+import logging
+logging.basicConfig(level=logging.ERROR)
+```
+
+Only critical errors are logged by default.
+
+## Notes
+
+- Commands are safely split using `shlex.split()` to handle quoted arguments
+- Output streams are read with `bufsize=1` for line-buffered I/O
+- `universal_newlines=True` ensures text mode output
+- Both functions strip whitespace from output lines
+- `splat_find` prints diagnostic information about the command being executed

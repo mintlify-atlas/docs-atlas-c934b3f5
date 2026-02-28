@@ -1,0 +1,257 @@
+---
+title: "CLI Commands"
+description: "Reference for Splat CLI command implementations and interactive shell"
+---
+
+## Overview
+
+The Splat CLI provides an interactive command-line interface built with Click and cmd. It enables terminal session management, command execution, and process monitoring through a REPL-style shell.
+
+## ZapShell Class
+
+The main interactive shell class that handles command processing and terminal session lifecycle.
+
+### Constructor
+
+```python
+class ZapShell(cmd.Cmd):
+    intro = 'Welcome to the Zap CLI. Type help or ? to list commands.\n'
+    prompt = 'zap> '
+
+    def __init__(self):
+        super().__init__()
+        self.ctx = None
+        self.zapper = None
+        self.term_sesh = None
+```
+
+**Attributes:**
+- `ctx` - Click context for command execution
+- `zapper` - Zapper instance for core functionality
+- `term_sesh` - TermSesh instance for terminal session management
+
+### Commands
+
+#### hello
+
+Display a greeting message.
+
+```python
+def do_hello(self, arg):
+    """Say hello"""
+    click.echo('Hello!')
+```
+
+**Usage:**
+```bash
+zap> hello
+Hello!
+```
+
+#### echo
+
+Echo the provided input back to the user.
+
+```python
+def do_echo(self, arg):
+    """Echo the input"""
+    click.echo(arg)
+```
+
+**Parameters:**
+- `arg` (str) - Text to echo
+
+**Usage:**
+```bash
+zap> echo Hello, Splat!
+Hello, Splat!
+```
+
+#### start
+
+Start up the terminal session using tmux with process monitoring.
+
+```python
+def do_start(self, arg):
+    """Start up the terminal session using tmux"""
+    self.zapper = Zapper()
+    self.zapper.start()
+    self.term_sesh = TermSesh(session_name='zapper_session')
+    if self.term_sesh.open_new_terminal():
+        self.term_sesh.monitor = ProcessMonitor(self.term_sesh)
+        self.term_sesh.monitor.start_monitoring()
+        click.echo("tmux session and monitoring started successfully")
+        self.term_sesh.publisher.send_json({'type': 'info', 'data': 'tmux session started'})
+```
+
+**Behavior:**
+1. Initializes Zapper instance
+2. Creates TermSesh with session name 'zapper_session'
+3. Opens new terminal window
+4. Starts ProcessMonitor for output tracking
+5. Sends status messages via ZMQ publisher
+
+**Usage:**
+```bash
+zap> start
+tmux session and monitoring started successfully
+```
+
+#### send
+
+Send a command to the active terminal session.
+
+```python
+def do_send(self, arg):
+    """Send a command to the terminal"""
+    if not self.term_sesh or not self.term_sesh.is_terminal_active():
+        click.echo("No active terminal session. Use 'start' first.")
+        return
+
+    response = self.term_sesh.send_to_terminal(arg)
+    if response:
+        click.echo(f"Command sent: {response}")
+```
+
+**Parameters:**
+- `arg` (str) - Command to execute in terminal
+
+**Returns:**
+- Confirmation message if command was sent successfully
+
+**Usage:**
+```bash
+zap> send ls -la
+Command sent: Command sent
+```
+
+#### exit / quit
+
+Exit the CLI application and clean up resources.
+
+```python
+def do_exit(self, arg):
+    """Exit the application"""
+    click.echo('Goodbye!')
+    if self.term_sesh:
+        if self.term_sesh.monitor:
+            self.term_sesh.monitor.is_running = False
+        if self.term_sesh.terminal_process:
+            self.term_sesh.terminal_process.terminate()
+        self.term_sesh.kill_tmux_session()
+    return True
+```
+
+**Behavior:**
+1. Stops process monitor
+2. Terminates terminal process
+3. Kills tmux session
+4. Returns True to exit shell
+
+**Usage:**
+```bash
+zap> exit
+Goodbye!
+```
+
+**Aliases:**
+- `quit`
+- `EOF` (Ctrl+D)
+
+### Special Methods
+
+#### precmd
+
+Checks terminal status before executing each command.
+
+```python
+def precmd(self, line):
+    """Check terminal status before each command"""
+    if self.term_sesh and not self.term_sesh.is_terminal_active():
+        click.echo("Terminal session ended unexpectedly")
+    return line
+```
+
+#### default
+
+Handles unknown commands by forwarding them to the active terminal session.
+
+```python
+def default(self, line):
+    """Handle unknown commands"""
+    if self.term_sesh and self.term_sesh.is_terminal_active():
+        self.do_send(line)
+    else:
+        click.echo(f"Unknown command: {line}")
+```
+
+## CLI Entry Points
+
+### cli()
+
+Main Click group that starts the interactive shell.
+
+```python
+@click.group(invoke_without_command=True)
+@click.pass_context
+def cli(ctx):
+    """Zap CLI - An interactive command line tool"""
+    if ctx.invoked_subcommand is None:
+        # Start the interactive shell
+        shell = ZapShell()
+        shell.ctx = ctx
+        shell.cmdloop()
+```
+
+### version()
+
+Display the CLI version.
+
+```python
+@cli.command()
+def version():
+    """Show the version"""
+    click.echo('Zap CLI v0.1.0')
+```
+
+**Usage:**
+```bash
+$ zap version
+Zap CLI v0.1.0
+```
+
+### main()
+
+Application entry point with keyboard interrupt handling.
+
+```python
+def main():
+    try:
+        cli()
+    except KeyboardInterrupt:
+        click.echo("\nGoodbye!")
+        sys.exit(0)
+```
+
+## Example Session
+
+```bash
+$ zap
+Welcome to the Zap CLI. Type help or ? to list commands.
+
+zap> start
+tmux session and monitoring started successfully
+
+zap> send echo "Hello from Splat"
+Command sent: Command sent
+
+zap> ls
+# Command forwarded to terminal automatically
+
+zap> exit
+Goodbye!
+```
+
+## Source Reference
+
+See `/home/daytona/workspace/source/cli/cli.py` for complete implementation.

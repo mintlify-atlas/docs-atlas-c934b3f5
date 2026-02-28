@@ -1,0 +1,177 @@
+---
+title: Troubleshooting
+description: Common issues and solutions when using Splat
+icon: wrench
+---
+
+## Common Issues
+
+<AccordionGroup>
+  <Accordion title="Splat command not found">
+    This usually means Splat is not installed or not in your PATH.
+
+    **Solution:**
+    
+    1. Verify installation:
+       ```bash
+       pip show splat
+       ```
+    
+    2. If not installed, install Splat:
+       ```bash
+       pip install -e .
+       ```
+    
+    3. Ensure your Python scripts directory is in PATH:
+       ```bash
+       export PATH="$HOME/.local/bin:$PATH"
+       ```
+  </Accordion>
+
+  <Accordion title="Code formatting issues after fixes">
+    Splat currently does not conform to formatting configurations when inserting code.
+
+    **Solution:**
+    
+    After Splat fixes your code, run your formatter manually:
+    
+    ```bash
+    black your_file.py
+    ```
+    
+    Or if using other formatters:
+    ```bash
+    # Prettier for JavaScript/TypeScript
+    prettier --write your_file.js
+    
+    # autopep8 for Python
+    autopep8 --in-place your_file.py
+    ```
+  </Accordion>
+
+  <Accordion title="Sub-module entrypoint errors">
+    Splat may not work correctly with entrypoints that don't originate in the root directory.
+
+    **Solution:**
+    
+    1. Run Splat from your project root directory:
+       ```bash
+       cd /path/to/project/root
+       splat squash "python3 submodule/main.py"
+       ```
+    
+    2. Or create a wrapper script in the root that calls your sub-module:
+       ```python
+       # run.py
+       from submodule import main
+       main.run()
+       ```
+       
+       Then use:
+       ```bash
+       splat squash "python3 run.py"
+       ```
+  </Accordion>
+
+  <Accordion title="Missing API key or Groq errors">
+    Splat uses Groq for AI inference and requires an API key.
+
+    **Solution:**
+    
+    1. Check if you have a `.env` file with your Groq API key:
+       ```bash
+       cat .env
+       ```
+    
+    2. If missing, create a `.env` file:
+       ```bash
+       echo "GROQ_API_KEY=your_api_key_here" > .env
+       ```
+    
+    3. Get your API key from [Groq Console](https://console.groq.com/)
+  </Accordion>
+
+  <Accordion title="Git-aware features not working">
+    If Splat is not respecting your `.gitignore` file:
+
+    **Solution:**
+    
+    1. Ensure you're in a Git repository:
+       ```bash
+       git status
+       ```
+    
+    2. Verify your `.gitignore` file exists:
+       ```bash
+       ls -la .gitignore
+       ```
+    
+    3. Re-initialize Git if necessary:
+       ```bash
+       git init
+       ```
+  </Accordion>
+
+  <Accordion title="Installation dependency errors">
+    Missing dependencies can cause various errors.
+
+    **Solution:**
+    
+    Install all required dependencies:
+    ```bash
+    pip install -r requirements.txt
+    ```
+    
+    Or install individually:
+    ```bash
+    pip install click repopack setuptools virtualenv groq fastapi uvicorn python-dotenv prompt_toolkit requests black pydantic_ai pydantic zmq
+    ```
+  </Accordion>
+
+  <Accordion title="Command not executing properly">
+    If your command runs but Splat doesn't capture errors:
+
+    **Solution:**
+    
+    1. Ensure you're wrapping the command in quotes:
+       ```bash
+       splat squash "python3 main.py"
+       ```
+    
+    2. Try the `-r` flag for more context:
+       ```bash
+       splat squash -r "python3 main.py"
+       ```
+    
+    3. Check that the command fails when run normally (Splat needs errors to debug)
+  </Accordion>
+</AccordionGroup>
+
+## Debug Mode
+
+For more detailed error information, you can:
+
+1. Check Python traceback:
+   ```bash
+   python3 -v your_script.py
+   ```
+
+2. Run with Python debugger:
+   ```bash
+   python3 -m pdb your_script.py
+   ```
+
+3. Enable verbose output in your terminal
+
+## Getting Help
+
+If you're still experiencing issues:
+
+- Check the [Known Issues](/advanced/known-issues) page
+- Review the [Contributing Guide](/advanced/contributing) to report bugs
+- Search existing issues on the project repository
+- Create a detailed bug report with:
+  - Your operating system and Python version
+  - Complete error messages
+  - Steps to reproduce the issue
+  - Expected vs actual behavior

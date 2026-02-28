@@ -1,0 +1,282 @@
+---
+title: Contributing Guide
+description: How to contribute to Splat development
+icon: code-pull-request
+---
+
+## Getting Started
+
+Welcome to Splat! We're excited to have you contribute. This guide will help you set up your development environment and understand our workflow.
+
+<Info>
+  Splat was created at CalHacks 11.0 and is actively maintained by the community.
+</Info>
+
+## Development Setup
+
+### Prerequisites
+
+Before you begin, ensure you have:
+
+- Python 3.7 or higher
+- Git
+- pip (Python package installer)
+- A text editor or IDE
+
+### Clone the Repository
+
+```bash
+git clone https://github.com/yourusername/splat.git
+cd splat
+```
+
+### Install Dependencies
+
+Install all required dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+<Accordion title="View full dependency list">
+  The following packages are required:
+  
+  - `click` - CLI framework
+  - `repopack` - Repository packaging utilities
+  - `setuptools` - Python package setup
+  - `virtualenv` - Virtual environment management
+  - `groq` - AI inference API
+  - `fastapi` - Web framework
+  - `uvicorn` - ASGI server
+  - `python-dotenv` - Environment variable management
+  - `prompt_toolkit` - Terminal interface utilities
+  - `requests` - HTTP library
+  - `black` - Code formatter
+  - `pydantic_ai` - AI integration
+  - `pydantic` - Data validation
+  - `zmq` - Messaging library
+</Accordion>
+
+### Install in Development Mode
+
+Install Splat in editable mode:
+
+```bash
+pip install -e .
+```
+
+This allows you to make changes to the code and test them immediately without reinstalling.
+
+### Set Up Environment Variables
+
+Create a `.env` file in the project root:
+
+```bash
+GROQ_API_KEY=your_groq_api_key_here
+```
+
+Get your API key from the [Groq Console](https://console.groq.com/).
+
+## Project Structure
+
+Understanding the codebase:
+
+```
+splat/
+├── cli/                  # Command-line interface
+│   ├── cli.py           # Main CLI entry point
+│   ├── process_monitor.py
+│   ├── term_sesh.py
+│   └── zap.py
+├── agents/              # AI agent implementations
+│   ├── agents.py
+│   ├── file_writer_agent.py
+│   └── __init__.py
+├── process/             # Process management
+│   ├── process.py
+│   └── agent_handler.py
+├── handlers/            # Request handlers
+│   └── fastapi_handlers.py
+├── terminalout/         # Terminal output formatting
+│   └── terminal.py
+├── utils/               # Utility functions
+│   └── utils.py
+├── errortrace.py        # Error tracing logic
+├── relational.py        # Relationship mapping
+├── module.py            # Module handling
+├── setup.py             # Package configuration
+└── requirements.txt     # Dependencies
+```
+
+## Development Workflow
+
+### 1. Create a Branch
+
+Always create a new branch for your changes:
+
+```bash
+git checkout -b feature/your-feature-name
+```
+
+Branch naming conventions:
+- `feature/` - New features
+- `fix/` - Bug fixes
+- `docs/` - Documentation updates
+- `refactor/` - Code refactoring
+
+### 2. Make Your Changes
+
+Follow these guidelines:
+
+<CardGroup cols={2}>
+  <Card title="Code Style" icon="paintbrush">
+    - Use Black for Python formatting
+    - Follow PEP 8 guidelines
+    - Write clear, descriptive variable names
+    - Add comments for complex logic
+  </Card>
+  
+  <Card title="Testing" icon="flask">
+    - Test your changes thoroughly
+    - Include edge cases
+    - Verify existing tests still pass
+    - Add tests for new features
+  </Card>
+  
+  <Card title="Documentation" icon="book">
+    - Update relevant documentation
+    - Add docstrings to functions
+    - Update README if needed
+    - Include usage examples
+  </Card>
+  
+  <Card title="Git Commits" icon="code-commit">
+    - Write clear commit messages
+    - Use present tense ("Add feature")
+    - Keep commits atomic
+    - Reference issues when applicable
+  </Card>
+</CardGroup>
+
+### 3. Format Your Code
+
+Before committing, format your code:
+
+```bash
+black .
+```
+
+### 4. Test Your Changes
+
+Run Splat locally to test:
+
+```bash
+# Test basic functionality
+splat squash "python3 test.py"
+
+# Test with context gathering
+splat squash -r "python3 test.py"
+```
+
+### 5. Commit Your Changes
+
+```bash
+git add .
+git commit -m "Add: brief description of your changes"
+```
+
+Commit message format:
+- **Add:** New features
+- **Fix:** Bug fixes
+- **Update:** Improvements to existing features
+- **Refactor:** Code restructuring
+- **Docs:** Documentation changes
+
+### 6. Push and Create Pull Request
+
+```bash
+git push origin feature/your-feature-name
+```
+
+Then create a pull request on GitHub with:
+- Clear title describing the change
+- Detailed description of what and why
+- Reference to any related issues
+- Screenshots or examples if applicable
+
+## Contributing Areas
+
+### High Priority
+
+<AccordionGroup>
+  <Accordion title="Fix Known Bugs">
+    Help resolve known issues:
+    - Code formatting preservation
+    - Sub-module entrypoint handling
+    
+    See [Known Issues](/advanced/known-issues) for details.
+  </Accordion>
+  
+  <Accordion title="Improve Error Detection">
+    Enhance error parsing and context gathering:
+    - Better stack trace analysis
+    - Multi-language support
+    - Improved file relationship mapping
+  </Accordion>
+  
+  <Accordion title="Add Tests">
+    Increase test coverage:
+    - Unit tests for core functions
+    - Integration tests
+    - Edge case testing
+  </Accordion>
+</AccordionGroup>
+
+### Feature Requests
+
+- Configuration file support (`.splatrc`)
+- IDE/editor integrations
+- Custom formatter integration
+- Additional language support
+- Performance optimizations
+- Enhanced AI model options
+
+## Code Review Process
+
+1. **Automated Checks:** CI/CD runs linting and tests
+2. **Maintainer Review:** Core team reviews your code
+3. **Feedback:** Address any requested changes
+4. **Approval:** Once approved, your PR will be merged
+5. **Recognition:** You'll be added to contributors!
+
+## Getting Help
+
+<CardGroup cols={2}>
+  <Card title="Questions" icon="question">
+    Open a discussion on GitHub for:
+    - Architecture questions
+    - Implementation guidance
+    - Best practices
+  </Card>
+  
+  <Card title="Issues" icon="circle-exclamation">
+    Create an issue for:
+    - Bug reports
+    - Feature requests
+    - Documentation improvements
+  </Card>
+</CardGroup>
+
+## Community Guidelines
+
+- Be respectful and inclusive
+- Provide constructive feedback
+- Help others when possible
+- Follow the code of conduct
+- Celebrate contributions, big and small
+
+## Recognition
+
+All contributors are recognized in the project's contributors list. Significant contributions may also be highlighted in release notes.
+
+Thank you for contributing to Splat!
